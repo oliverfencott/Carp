@@ -39,7 +39,7 @@ beautifyType t =
 
 saveBuildInfoForEnvs :: Project -> [(SymPath, Binder)] -> IO ()
 saveBuildInfoForEnvs ctx pathsAndEnvBinders =
-  let dir = "json-outputs"
+  let dir = "__dev__"
       dependencies = getDependenciesForEnvs (Prelude.map (\(p, b) -> (p, fst (getEnvAndMetaFromBinder b))) pathsAndEnvBinders)
       pathsAndEnvBinders' = pathsAndEnvBinders ++ dependencies
       allEnvNames = fmap fst pathsAndEnvBinders'
@@ -153,27 +153,22 @@ envBinderToJson2 envBinder ctx moduleName moduleNames =
       metaJson = Map.toList (Map.map xObjToJson (getMeta meta))
    in case xobjObj xobj of
         Mod env _ ->
-          -- This may be a source of bugs
-          let _jsonBindings =
+          let jsonBindings =
                 envBindings env
                   & Map.toList
                   & List.map
                     ( JsonMap
                         . ( \(symbolName, binder) ->
-                              [ ("symbol", JsonString symbolName),
-                                ("bindings", envBinderToJson binder ctx moduleName moduleNames)
-                              ]
+                              ("symbol", JsonString symbolName) :
+                              envBinderToJson2 binder ctx moduleName moduleNames
                           )
                     )
 
-              -- & List.concatMap
-              --   ( \(k, binder) ->
-              --       [("symbol" :: [Char], JsonString k), ("bindings", envBinderToJson binder ctx moduleName moduleNames)]
-              --   )
-              -- & List.map snd
               json =
-                -- [("type", JsonString "module"), ("bindings", jsonBindings)]
-                [("type", JsonString "module"), ("bindings", JsonList _jsonBindings)]
+                [ ("bindings", JsonList jsonBindings),
+                  ("meta", JsonMap metaJson),
+                  ("info", xObjToJson xobj)
+                ]
            in json
         _ ->
           [ ("meta", JsonMap metaJson),
