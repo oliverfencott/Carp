@@ -3,7 +3,6 @@
 
 {-# HLINT ignore "Use lambda-case" #-}
 
--- module RenderBuildInfo where
 module Json where
 
 import qualified Data.List as List

@@ -1,5 +1,6 @@
 module Commands where
 
+import BuildInfo
 import ColorText
 import Context
 import Control.Exception
@@ -21,7 +22,6 @@ import Parsing (parse)
 import Path
 import Project
 import Reify
-import RenderBuildInfo
 import RenderDocs
 import System.Directory (makeAbsolute)
 import System.Environment (getEnv, setEnv)
@@ -800,65 +800,11 @@ commandSaveDocsEx ctx modulePaths filePaths = do
     binderFilename = takeFileName . fromMaybe "" . fmap infoFile . xobjInfo . binderXObj
 
 -- | Command for outputting a JSON object for consumption by tooling, LSPs, etc.
-commandGenerateBuildInfo :: BinaryCommandCallback
-commandGenerateBuildInfo ctx modulePaths filePaths = do
-  case modulesAndGlobals of
-    Left err -> pure (ctx, Left err)
-    Right ok -> saveBuild ctx ok
-  where
-    globalEnv = contextGlobalEnv ctx
-    modulesAndGlobals =
-      let (_, mods) = modules
-          (_, globs) = filesWithGlobals
-       in do
-            okMods <- mods
-            okGlobs <- globs
-            pure (okMods ++ okGlobs)
-    modules :: (Context, Either EvalError [(SymPath, Binder)])
-    modules = do
-      case modulePaths of
-        XObj (Arr xobjs) _ _ ->
-          case mapM unwrapSymPathXObj xobjs of
-            Left err -> evalError ctx err (xobjInfo modulePaths)
-            Right okPaths ->
-              case mapM (getEnvironmentBinderForDocumentation globalEnv) okPaths of
-                Left err -> evalError ctx err (xobjInfo modulePaths)
-                Right okEnvBinders -> (ctx, Right (zip okPaths okEnvBinders))
-        x ->
-          evalError ctx ("Invalid first arg to save-docs-internal (expected array of symbols): " ++ pretty x) (xobjInfo modulePaths)
-    filesWithGlobals :: (Context, Either EvalError [(SymPath, Binder)])
-    filesWithGlobals = do
-      case filePaths of
-        XObj (Arr xobjs) _ _ ->
-          case mapM unwrapStringXObj xobjs of
-            Left err -> evalError ctx err (xobjInfo filePaths)
-            Right okPaths ->
-              let globalBinders = map (getGlobalBindersForDocumentation globalEnv) okPaths
-                  fauxModules = zipWith createFauxModule okPaths globalBinders
-               in (ctx, Right fauxModules)
-        x ->
-          evalError ctx ("Invalid second arg to save-docs-internal (expected array of strings containing filenames): " ++ pretty x) (xobjInfo filePaths)
-    createFauxModule :: String -> Map.Map String Binder -> (SymPath, Binder)
-    createFauxModule filename binders =
-      let moduleName = "Globals in " ++ filename
-          fauxGlobalModule = E.new Nothing (Just moduleName)
-          fauxGlobalModuleWithBindings = fauxGlobalModule {envBindings = binders}
-          fauxTypeEnv = E.new Nothing Nothing
-       in (SymPath [] moduleName, Binder emptyMeta (XObj (Mod fauxGlobalModuleWithBindings fauxTypeEnv) Nothing Nothing))
-    getEnvironmentBinderForDocumentation :: Env -> SymPath -> Either String Binder
-    getEnvironmentBinderForDocumentation env path =
-      case E.searchValueBinder env path of
-        Right foundBinder@(Binder _ (XObj (Mod _ _) _ _)) ->
-          Right foundBinder
-        Right (Binder _ x) ->
-          Left ("I can’t generate documentation for `" ++ pretty x ++ "` because it isn’t a module")
-        Left _ ->
-          Left ("I can’t find the module `" ++ show path ++ "`")
-    getGlobalBindersForDocumentation :: Env -> String -> Map.Map String Binder
-    getGlobalBindersForDocumentation env filename =
-      Map.filter (\bind -> (binderFilename bind) == filename) (envBindings env)
-    binderFilename :: Binder -> String
-    binderFilename = takeFileName . fromMaybe "" . fmap infoFile . xobjInfo . binderXObj
+commandGenerateBuildInfo :: NullaryCommandCallback
+commandGenerateBuildInfo ctx =
+  do
+    putStrLn (fromEnv ctx)
+    pure (ctx, dynamicNil)
 
 -- | Command for emitting literal C code from Carp.
 -- The string passed to this function will be emitted as is.
@@ -870,11 +816,6 @@ commandEmitC ctx (XObj (Str c) i _) =
   pure (ctx, Right (XObj (C c) i (Just CTy)))
 commandEmitC ctx xobj =
   pure (evalError ctx ("Invalid argument to emit-c (expected a string):" ++ pretty xobj) (xobjInfo xobj))
-
-saveBuild :: Context -> [(SymPath, Binder)] -> IO (Context, Either a XObj)
-saveBuild ctx pathsAndEnvBinders = do
-  liftIO (saveBuildInfoForEnvs (contextProj ctx) pathsAndEnvBinders)
-  pure (ctx, dynamicNil)
 
 saveDocs :: Context -> [(SymPath, Binder)] -> IO (Context, Either a XObj)
 saveDocs ctx pathsAndEnvBinders = do

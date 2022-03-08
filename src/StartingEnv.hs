@@ -266,7 +266,8 @@ dynamicModule =
             f "project" commandProject "prints the current project state." "(project)",
             f "host-arch" commandHostArch "prints the host architecture (as returned by the Haskell function `System.Info.arch`)." "(host-arch)",
             f "host-os" commandHostOS "prints the host operating system (as returned by the Haskell function `System.Info.os`)." "(host-os)",
-            f "host-bit-width" commandHostBitWidth "gets the bit width of the host platform." "(host-bit-width) ; => your host machine’s bit width, e.g. 32 or 64"
+            f "host-bit-width" commandHostBitWidth "gets the bit width of the host platform." "(host-bit-width) ; => your host machine’s bit width, e.g. 32 or 64",
+            f "build-info" commandGenerateBuildInfo "prints a json blob to stdout with build information that may be parsed and used with tooling." "(build-info)"
           ]
     unaries =
       let f = addUnaryCommand . spath
@@ -303,7 +304,7 @@ dynamicModule =
             f "*" commandMul "multiplies its two arguments." "(* 2 3) ; => 6",
             f "write-file" commandWriteFile "writes a string to a file." "(write-file \"myfile\" \"hello there!\")",
             f "set-env" commandSetEnv "sets an environment variable." "(set-env \"CARP_WAS_HERE\" \"true\")",
-            f "build-info" commandGenerateBuildInfo "prints a json blob to stdout with build information that may be parsed and used with tooling." "(build-info '(ModuleA ModuleB) '(\"globals.carp\"))",
+            -- f "build-info" commandGenerateBuildInfo "prints a json blob to stdout with build information that may be parsed and used with tooling." "(build-info '(ModuleA ModuleB) '(\"globals.carp\"))",
             f "save-docs-internal" commandSaveDocsEx "takes two arrays, one with paths to modules (as symbols), and one with filenames (as strings). The filenames are used to emit global symbols in those files into a 'Global' module." "(save-docs-internal '(ModuleA ModuleB) '(\"globals.carp\"))"
           ]
     variadics =
