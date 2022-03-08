@@ -1,4 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use lambda-case" #-}
 
 -- module RenderBuildInfo where
 module Json where
@@ -13,7 +16,7 @@ data Json
   | JsonList [Json]
 
 printJson :: Json -> String
-printJson (JsonString s) = "\"" ++ s ++ "\""
+printJson (JsonString s) = show s
 printJson (JsonNumber n) = n
 printJson JsonNull = "null"
 printJson (JsonList nodes) =
