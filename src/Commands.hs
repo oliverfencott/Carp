@@ -803,7 +803,7 @@ commandSaveDocsEx ctx modulePaths filePaths = do
 commandGenerateBuildInfo :: NullaryCommandCallback
 commandGenerateBuildInfo ctx =
   do
-    putStrLn (fromEnv ctx)
+    putStrLn (fromEnv (contextGlobalEnv ctx))
     pure (ctx, dynamicNil)
 
 -- | Command for emitting literal C code from Carp.

@@ -12,13 +12,11 @@ import qualified Map
 import Obj
   ( Binder (..),
     Context (contextGlobalEnv),
-    Env (envBindings),
+    Env,
     MetaData (getMeta),
-    Obj (Mod),
     XObj (..),
     pretty,
   )
-import Project
 import TypeError (typeVariablesInOrderOfAppearance)
 import Types
 
@@ -34,43 +32,6 @@ beautifyType t =
               (List.map (VarTy . (: [])) ['a' ..])
           )
    in replaceTyVars mappings t
-
-saveBuildInfoForEnvs :: Project -> [(SymPath, Binder)] -> IO ()
-saveBuildInfoForEnvs ctx pathsAndEnvBinders =
-  let pathsAndEnvBinders' = pathsAndEnvBinders
-      -- allEnvNames = fmap fst pathsAndEnvBinders'
-      _allEnvNames = fmap snd pathsAndEnvBinders'
-      json = map (envBinderToJson ctx) pathsAndEnvBinders' & JsonList
-   in putStrLn (printJson json)
-
-envBinderToJson :: Project -> (SymPath, Binder) -> Json
-envBinderToJson ctx (path, env) =
-  toJson env ctx & JsonMap
-  where
-    toJson env ctx =
-      let meta = binderMeta env
-          xobj = binderXObj env
-          metaJson = ("meta", metaToJson meta)
-       in case xobjObj xobj of
-            Mod env _ ->
-              let jsonBindings =
-                    envBindings env
-                      & Map.toList
-                      & List.map
-                        ( JsonMap
-                            . ( \(symbolName, binder) ->
-                                  ("symbol", JsonString symbolName) :
-                                  toJson binder ctx
-                              )
-                        )
-               in xObjToPairs xobj
-                    ++ [ ("type", JsonString "module"),
-                         ("symbol", JsonString (show path)),
-                         metaJson,
-                         ("bindings", JsonList jsonBindings)
-                       ]
-            _ ->
-              xObjToPairs xobj ++ [metaJson]
 
 xObjToPairs :: XObj -> [(String, Json)]
 xObjToPairs xObj =
@@ -101,10 +62,9 @@ metaToJson meta =
     & Map.toList
     & JsonMap
 
-fromEnv :: Context -> String
+fromEnv :: Env -> String
 fromEnv e =
   e
-    & contextGlobalEnv
     & binders
     & Map.toList
     & map
@@ -118,13 +78,3 @@ fromEnv e =
       )
     & JsonList
     & printJson
-
--- & map
---   ( JsonMap
---       . ( \(k, binder) ->
---             xObjToPairs (binderXObj binder)
---               ++ [ ("symbol", JsonString k),
---                    ("meta", metaToJson (binderMeta binder))
---                  ]
---         )
---   )
