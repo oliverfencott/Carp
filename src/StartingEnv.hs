@@ -303,7 +303,8 @@ dynamicModule =
             f "*" commandMul "multiplies its two arguments." "(* 2 3) ; => 6",
             f "write-file" commandWriteFile "writes a string to a file." "(write-file \"myfile\" \"hello there!\")",
             f "set-env" commandSetEnv "sets an environment variable." "(set-env \"CARP_WAS_HERE\" \"true\")",
-            f "save-docs-ex" commandSaveDocsEx "takes two arrays, one with paths to modules (as symbols), and one with filenames (as strings). The filenames are used to emit global symbols in those files into a 'Global' module." "(save-docs-internal '(ModuleA ModuleB) '(\"globals.carp\"))"
+            f "build-info" commandGenerateBuildInfo "prints a json blob to stdout with build information that may be parsed and used with tooling." "(build-info '(ModuleA ModuleB) '(\"globals.carp\"))",
+            f "save-docs-internal" commandSaveDocsEx "takes two arrays, one with paths to modules (as symbols), and one with filenames (as strings). The filenames are used to emit global symbols in those files into a 'Global' module." "(save-docs-internal '(ModuleA ModuleB) '(\"globals.carp\"))"
           ]
     variadics =
       let f = addVariadicCommand . spath
@@ -380,7 +381,7 @@ dynamicStringModule =
   where
     path = ["Dynamic", "String"]
     bindings =
-      Map.fromList $unaries ++ binaries ++ ternaries
+      Map.fromList $ unaries ++ binaries ++ ternaries
     spath = SymPath path
     unaries =
       let f = addUnaryCommand . spath
@@ -429,7 +430,7 @@ dynamicSymModule =
     }
   where
     path = ["Dynamic", "Symbol"]
-    bindings = Map.fromList $unaries ++ binaries
+    bindings = Map.fromList $ unaries ++ binaries
     spath = SymPath path
     unaries =
       let f = addUnaryCommand . spath
@@ -455,7 +456,7 @@ dynamicProjectModule =
     }
   where
     path = ["Dynamic", "Project"]
-    bindings = Map.fromList $unaries ++ binaries
+    bindings = Map.fromList $ unaries ++ binaries
     spath = SymPath path
     unaries =
       let f = addUnaryCommand . spath
