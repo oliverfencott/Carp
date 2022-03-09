@@ -11,12 +11,14 @@ data Json
   = JsonString String
   | JsonNumber String
   | JsonMap [(String, Json)]
-  | JsonNull
+  | JsonBool Bool
   | JsonList [Json]
+  | JsonNull
 
 printJson :: Json -> String
 printJson (JsonString s) = show s
 printJson (JsonNumber n) = n
+printJson (JsonBool b) = if b then "true" else "false"
 printJson JsonNull = "null"
 printJson (JsonList nodes) =
   "[" ++ loop nodes ++ "]"
@@ -26,16 +28,26 @@ printJson (JsonList nodes) =
       (x : xs) ->
         printJson x
           ++ List.foldl
-            (\memo b -> memo ++ ", " ++ printJson b)
+            ( \memo b ->
+                memo
+                  ++ ","
+                  ++ printJson b
+            )
             ""
             xs
 printJson (JsonMap kvs) =
-  let x =
-        List.foldl
-          ( \memo (key, value) ->
-              let start = if memo == "" then "" else ",\n "
-               in memo ++ start ++ (printJson (JsonString key) ++ ": ") ++ printJson value
-          )
-          ""
-          kvs
-   in "{" ++ x ++ "}"
+  "{" ++ loop kvs ++ "}"
+  where
+    loop nodes = case nodes of
+      [] -> ""
+      ((k, v) : rest) ->
+        printJson (JsonString k) ++ ":" ++ printJson v
+          ++ List.foldl
+            ( \memo json ->
+                memo ++ ","
+                  ++ printJson (JsonString (fst json))
+                  ++ ":"
+                  ++ printJson (snd json)
+            )
+            ""
+            rest
