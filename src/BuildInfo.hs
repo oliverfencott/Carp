@@ -5,16 +5,18 @@ module BuildInfo where
 
 import Data.Function ((&))
 import qualified Data.List as List
+import Data.Maybe (isNothing)
 import Env (binders)
 import Info (Info (infoColumn, infoFile, infoLine))
 import Json
+import Json (Json (JsonBool))
 import qualified Map
 import Obj
   ( Binder (..),
-    Context (contextGlobalEnv),
     Env,
     MetaData (getMeta),
     XObj (..),
+    isMod,
     pretty,
   )
 import TypeError (typeVariablesInOrderOfAppearance)
@@ -40,7 +42,8 @@ xObjToPairs xObj =
         Just t -> JsonString (show (beautifyType t))
       info = maybe JsonNull infoToJson (xobjInfo xObj)
    in [ ("type", type_),
-        ("info", info)
+        ("info", info),
+        ("isBuiltIn", JsonBool (not (isMod xObj) && isNothing (xobjInfo xObj)))
       ]
 
 infoToJson :: Info.Info -> Json
