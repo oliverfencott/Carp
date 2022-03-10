@@ -255,7 +255,7 @@ dynamicModule =
     path = ["Dynamic"]
     spath = SymPath path
     bindings =
-      Map.fromList $ nullaries ++ unaries ++ binaries ++ ternaries ++ variadics ++ unaries' ++ binaries' ++ ternaries' ++ quaternaries' ++ variadics' ++ mods
+      Map.fromList $ nullaries ++ unaries ++ binaries ++ variadics ++ unaries' ++ binaries' ++ ternaries' ++ quaternaries' ++ variadics' ++ mods
     nullaries =
       let f = addNullaryCommand . spath
        in [ f "quit" commandQuit "quits the program." "(quit)",
@@ -305,11 +305,6 @@ dynamicModule =
             f "write-file" commandWriteFile "writes a string to a file." "(write-file \"myfile\" \"hello there!\")",
             f "set-env" commandSetEnv "sets an environment variable." "(set-env \"CARP_WAS_HERE\" \"true\")",
             f "save-docs-internal" commandSaveDocsEx "takes two arrays, one with paths to modules (as symbols), and one with filenames (as strings). The filenames are used to emit global symbols in those files into a 'Global' module." "(save-docs-internal '(ModuleA ModuleB) '(\"globals.carp\"))"
-          ]
-    -- TODO: Move this (and subsequent commands) into a dynamic "Analysis" module
-    ternaries =
-      let f = addTernaryCommand . spath
-       in [ f "analysis/definition" commandAnalysisDefintion "outputs JSON for the symbol at specified position." "(analysis/definition string int int)"
           ]
     variadics =
       let f = addVariadicCommand . spath
@@ -366,11 +361,34 @@ dynamicModule =
             f "help" primitiveHelp "prints help." "(help)"
           ]
     mods =
-      [ ("String", Binder emptyMeta (XObj (Mod dynamicStringModule E.empty) Nothing Nothing)),
+      [ ("Analysis", Binder emptyMeta (XObj (Mod dynamicAnalysisModule E.empty) Nothing Nothing)),
+        ("String", Binder emptyMeta (XObj (Mod dynamicStringModule E.empty) Nothing Nothing)),
         ("Symbol", Binder emptyMeta (XObj (Mod dynamicSymModule E.empty) Nothing Nothing)),
         ("Project", Binder emptyMeta (XObj (Mod dynamicProjectModule E.empty) Nothing Nothing)),
         ("Path", Binder emptyMeta (XObj (Mod dynamicPathModule E.empty) Nothing Nothing))
       ]
+
+-- | A submodule of the Dynamic module. Contains functions for working with language server protocol.
+dynamicAnalysisModule :: Env
+dynamicAnalysisModule =
+  Env
+    { envBindings = bindings,
+      envParent = Nothing,
+      envModuleName = Just "Analysis",
+      envUseModules = Set.empty,
+      envMode = ExternalEnv,
+      envFunctionNestingLevel = 0
+    }
+  where
+    path = ["Dynamic", "Analysis"]
+    spath = SymPath path
+    bindings =
+      Map.fromList ternaries
+    -- TODO: Move this (and subsequent commands) into a dynamic "Analysis" module
+    ternaries =
+      let f = addTernaryCommand . spath
+       in [ f "text-document/hover" commandHover "outputs JSON for the symbol at specified position." "(text-document/hover string int int)"
+          ]
 
 -- | A submodule of the Dynamic module. Contains functions for working with strings in the repl or during compilation.
 dynamicStringModule :: Env

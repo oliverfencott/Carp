@@ -1,5 +1,6 @@
 module Commands where
 
+import Analysis (textHover)
 import BuildInfo
 import ColorText
 import Context
@@ -7,17 +8,18 @@ import Control.Exception
 import Control.Monad (join, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits (finiteBitSize)
-import Data.Either (fromRight)
 import Data.Functor ((<&>))
 import Data.Hashable (hash)
-import Data.List (elemIndex, find, foldl')
+import Data.List (elemIndex, foldl')
 import Data.List.Split (splitOn)
 import Data.Maybe (fromMaybe)
 import Emit
-import Env (findAllGlobalVariables)
 import qualified Env as E
 import Info
-import Json (Json (JsonMap, JsonString), printJson)
+  ( FilePathPrintLength (ShortPath),
+    Info (infoFile),
+    dummyInfo,
+  )
 import Map (Map)
 import qualified Map
 import qualified Meta
@@ -963,91 +965,24 @@ commandType ctx (XObj x _ _) =
     typeOf Deref = "deref"
     typeOf (Interface _ _) = "interface"
 
--- (do
---   (load "/Users/oliverfencott/Desktop/projects/carp/__dev__/test.carp")
---   (analysis/definition "/Users/oliverfencott/Desktop/projects/carp/__dev__/test.carp" 7 11)
--- )
-
 -- TODO:
 -- - Get everything, not just DEFs
 -- - Flatten entire environment in order to find all symbols
 -- - Rename function
--- - Move actual analysis function in Analysis.hs module
-commandAnalysisDefintion :: TernaryCommandCallback
-commandAnalysisDefintion ctx filePathObj lineObj columnObj =
+commandHover :: TernaryCommandCallback
+commandHover ctx filePathObj lineObj columnObj =
   case (filePathObj, lineObj, columnObj) of
     ( XObj (Str filePath) _ _,
       XObj (Num IntTy (Integral line)) _ _,
       XObj (Num IntTy (Integral column)) _ _
       ) ->
-        let __inFile = bindersInFile filePath (findAllGlobalVariables (contextGlobalEnv ctx))
-            allEnvs = [contextGlobalEnv ctx]
-            inFile = concatMap (bindersInFile filePath . findAllGlobalVariables) allEnvs
-            -- allEnvs = context
-            onLine = bindersOnLine line inFile
-            binder = findObj column onLine
-         in do
-              case binder of
-                Nothing -> pure ()
-                Just b ->
-                  let type_ = xobjTy (binderXObj b)
-                      typeInfo = maybe "" (\t -> "```carp \n" ++ show t ++ "\n```\n***\n") type_
-                      doc = maybe "" (fromRight "" . unwrapStringXObj) (Meta.get "doc" (binderMeta b))
-                      json =
-                        JsonMap
-                          [ ( "contents",
-                              JsonMap
-                                [ ("kind", JsonString "markdown"),
-                                  ("value", JsonString (typeInfo ++ doc))
-                                ]
-                            )
-                          ]
-                   in do
-                        putStrLn (printJson json)
-
-              pure (ctx, dynamicNil)
+        do
+          putStrLn (textHover ctx filePath line column)
+          pure (ctx, dynamicNil)
     _ ->
       pure
         ( evalError
             ctx
-            "'analysis/definition' arguments must be a string (filepath), an int (line) and another int (columnn)"
+            "'text-document/hover' arguments must be a string (filepath), an int (line) and another int (columnn)"
             Nothing
         )
-  where
-    findObj :: Int -> [Binder] -> Maybe Binder
-    findObj column binderList =
-      if column < 0
-        then Nothing
-        else case binderAtColumn column binderList of
-          Nothing -> findObj (column - 1) binderList
-          res -> res
-
-bindersInFile :: String -> [Binder] -> [Binder]
-bindersInFile file =
-  filter
-    ( \binder ->
-        case infoFromBinder binder of
-          Nothing -> False
-          Just info -> infoFile info == file
-    )
-
-bindersOnLine :: Int -> [Binder] -> [Binder]
-bindersOnLine line =
-  filter
-    ( \v ->
-        case infoFromBinder v of
-          Nothing -> False
-          Just i -> infoLine i == line
-    )
-
-binderAtColumn :: Int -> [Binder] -> Maybe Binder
-binderAtColumn column =
-  find
-    ( \v ->
-        case infoFromBinder v of
-          Nothing -> False
-          Just i -> infoColumn i == column
-    )
-
-infoFromBinder :: Binder -> Maybe Info
-infoFromBinder binder = xobjInfo (binderXObj binder)
