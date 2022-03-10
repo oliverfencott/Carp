@@ -2,7 +2,7 @@ module Analysis where
 
 import Data.Either (fromRight)
 import Data.List (find)
-import Env (findAllGlobalVariables)
+import Env (allImportedEnvs, findAllGlobalSymbols)
 import Info
 import Json (Json (JsonMap, JsonString), printJson)
 import qualified Meta
@@ -26,7 +26,15 @@ textHover ctx filePath line column =
     Nothing -> ""
     Just b ->
       let type_ = xobjTy (binderXObj b)
-          typeInfo = maybe "" (\t -> "```carp \n" ++ show t ++ "\n```\n***\n") type_
+          typeInfo =
+            maybe
+              ""
+              ( \t ->
+                  "```carp \n"
+                    ++ show t
+                    ++ "\n```\n***\n"
+              )
+              type_
           doc = maybe "" (fromRight "" . unwrapStringXObj) (Meta.get "doc" (binderMeta b))
           json =
             JsonMap
@@ -39,10 +47,9 @@ textHover ctx filePath line column =
               ]
        in printJson json
   where
-    __inFile = bindersInFile filePath (findAllGlobalVariables (contextGlobalEnv ctx))
-    allEnvs = [contextGlobalEnv ctx]
-    inFile = concatMap (bindersInFile filePath . findAllGlobalVariables) allEnvs
-    -- allEnvs = context
+    env = contextGlobalEnv ctx
+    allEnvs = allImportedEnvs env env ++ [env]
+    inFile = concatMap (bindersInFile filePath . findAllGlobalSymbols) allEnvs
     onLine = bindersOnLine line inFile
     binder = findObj column onLine
     findObj :: Int -> [Binder] -> Maybe Binder
