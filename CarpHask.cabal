@@ -16,7 +16,8 @@ cabal-version:       >=1.10
 library
   ghc-options:         -Wall -Werror
   hs-source-dirs:      src
-  exposed-modules:     ArrayTemplates,
+  exposed-modules:     Analysis,
+                       ArrayTemplates,
                        AssignTypes,
                        BoxTemplates,
                        BuildInfo,
