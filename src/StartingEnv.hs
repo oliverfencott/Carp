@@ -255,7 +255,7 @@ dynamicModule =
     path = ["Dynamic"]
     spath = SymPath path
     bindings =
-      Map.fromList $ nullaries ++ unaries ++ binaries ++ variadics ++ unaries' ++ binaries' ++ ternaries' ++ quaternaries' ++ variadics' ++ mods
+      Map.fromList $ nullaries ++ unaries ++ binaries ++ ternaries ++ variadics ++ unaries' ++ binaries' ++ ternaries' ++ quaternaries' ++ variadics' ++ mods
     nullaries =
       let f = addNullaryCommand . spath
        in [ f "quit" commandQuit "quits the program." "(quit)",
@@ -304,8 +304,12 @@ dynamicModule =
             f "*" commandMul "multiplies its two arguments." "(* 2 3) ; => 6",
             f "write-file" commandWriteFile "writes a string to a file." "(write-file \"myfile\" \"hello there!\")",
             f "set-env" commandSetEnv "sets an environment variable." "(set-env \"CARP_WAS_HERE\" \"true\")",
-            -- f "build-info" commandGenerateBuildInfo "prints a json blob to stdout with build information that may be parsed and used with tooling." "(build-info '(ModuleA ModuleB) '(\"globals.carp\"))",
             f "save-docs-internal" commandSaveDocsEx "takes two arrays, one with paths to modules (as symbols), and one with filenames (as strings). The filenames are used to emit global symbols in those files into a 'Global' module." "(save-docs-internal '(ModuleA ModuleB) '(\"globals.carp\"))"
+          ]
+    -- TODO: Move this (and subsequent commands) into a dynamic "Analysis" module
+    ternaries =
+      let f = addTernaryCommand . spath
+       in [ f "analysis/definition" commandAnalysisDefintion "outputs JSON for the symbol at specified position." "(analysis/definition string int int)"
           ]
     variadics =
       let f = addVariadicCommand . spath

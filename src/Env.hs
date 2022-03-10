@@ -667,6 +667,15 @@ findAllGlobalVariables e =
   foldl' finder [] (Map.elems (binders e))
   where
     finder :: [Binder] -> Binder -> [Binder]
-    finder acc (Binder _ (XObj (Mod ev _) _ _)) = acc ++ (findAllGlobalVariables (inj ev))
-    finder acc def@(Binder _ (XObj (Lst (XObj Def _ _ : _)) _ _)) = (def : acc)
+    finder acc (Binder _ (XObj (Mod ev _) _ _)) = acc ++ findAllGlobalVariables (inj ev)
+    finder acc def@(Binder _ (XObj (Lst (XObj Def _ _ : _)) _ _)) = def : acc
     finder acc _ = acc
+
+-- findAllGlobalSymbols :: Env -> [Binder]
+-- findAllGlobalSymbols e =
+--   foldl' finder [] (Map.elems (binders e))
+--   where
+--     finder :: [Binder] -> Binder -> [Binder]
+--     finder acc (Binder _ (XObj (Mod ev _) _ _)) = acc ++ (findAllGlobalVariables (inj ev))
+--     finder acc def@(Binder _ (XObj (Lst (XObj Def _ _ : _)) _ _)) = (def : acc)
+--     finder acc _ = acc
