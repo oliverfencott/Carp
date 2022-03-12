@@ -67,6 +67,7 @@ where
 
 import Data.Either (fromRight, rights)
 import Data.Foldable (Foldable (toList))
+import Data.Function ((&))
 import Data.List (foldl', unfoldr)
 import Data.Maybe (fromMaybe)
 import qualified Map
@@ -682,60 +683,65 @@ findAllSymbols e =
     finder acc binder@(Binder _ (XObj (Mod ev _) _ _)) = acc ++ [binder] ++ findAllSymbols (inj ev)
     finder acc def = def : acc
 
-findAllForms :: Env -> [XObj]
+findAllForms :: Env -> [Binder]
 findAllForms e =
-  getAllForms (map binderXObj (findAllSymbols e))
+  getAllForms symbols
   where
+    symbols = findAllSymbols e
+    binder m o = Binder {binderMeta = m, binderXObj = o}
+    getAllForms :: [Binder] -> [Binder]
     getAllForms =
       foldl
-        ( \memo x ->
-            memo ++ case xobjObj x of
-              Sym _path _mode -> [x]
-              MultiSym _sym _paths -> [x]
-              InterfaceSym _sym -> [x]
-              Num _type _number -> [x]
-              Str _ -> [x]
-              Pattern _ -> [x]
-              Chr _ -> [x]
-              Bol _ -> [x]
-              Lst xObjs -> getAllForms xObjs
-              Arr xObjs -> getAllForms xObjs
-              StaticArr xObjs -> getAllForms xObjs
-              Dict dict -> toList dict
-              Closure _XObj _closureContext -> [x]
-              Defn Nothing -> [x]
-              Defn (Just xObjs) -> toList xObjs
-              Def -> [x]
-              Fn _path xObjs -> toList xObjs
-              Do -> [x]
-              Let -> [x]
-              LocalDef -> [x]
-              While -> [x]
-              Break -> [x]
-              If -> [x]
-              Match _MatchMode -> [x]
-              Mod env _TypeEnv -> findAllForms env
-              Deftype _Ty -> [x]
-              DefSumtype _Ty -> [x]
-              With -> [x]
-              External Nothing -> [x]
-              External (Just _String) -> [x]
-              ExternalType (Just _String) -> [x]
-              ExternalType Nothing -> [x]
-              MetaStub -> [x]
-              Deftemplate _ -> [x]
-              Instantiate _ -> [x]
-              Defalias _ -> [x]
-              SetBang -> [x]
-              Macro -> [x]
-              Dynamic -> [x]
-              DefDynamic -> [x]
-              Command _ -> [x]
-              Primitive _ -> [x]
-              The -> [x]
-              Ref -> [x]
-              Deref -> [x]
-              Interface _ _ -> [x]
-              C _String -> [x]
+        ( \memo i ->
+            let meta = binderMeta i
+                x = binderXObj i
+             in memo ++ case xobjObj x of
+                  Sym _path _mode -> [i]
+                  MultiSym _sym _paths -> [i]
+                  InterfaceSym _sym -> [i]
+                  Num _type _number -> [i]
+                  Str _ -> [i]
+                  Pattern _ -> [i]
+                  Chr _ -> [i]
+                  Bol _ -> [i]
+                  Lst xObjs -> xObjs & map (binder meta)
+                  Arr xObjs -> xObjs & map (binder meta)
+                  StaticArr xObjs -> xObjs & map (binder meta)
+                  Dict dict -> concatMap (\(a, b) -> [binder meta a, binder meta b]) (Map.assocs dict)
+                  Closure _XObj _closureContext -> [i]
+                  Defn Nothing -> [i]
+                  Defn (Just xObjs) -> toList xObjs & map (binder meta)
+                  Def -> [i]
+                  Fn _path xObjs -> toList xObjs & map (binder meta)
+                  Do -> [i]
+                  Let -> [i]
+                  LocalDef -> [i]
+                  While -> [i]
+                  Break -> [i]
+                  If -> [i]
+                  Match _MatchMode -> [i]
+                  Mod env _TypeEnv -> findAllSymbols env
+                  Deftype _Ty -> [i]
+                  DefSumtype _Ty -> [i]
+                  With -> [i]
+                  External Nothing -> [i]
+                  External (Just _String) -> [i]
+                  ExternalType (Just _String) -> [i]
+                  ExternalType Nothing -> [i]
+                  MetaStub -> [i]
+                  Deftemplate _ -> [i]
+                  Instantiate _ -> [i]
+                  Defalias _ -> [i]
+                  SetBang -> [i]
+                  Macro -> [i]
+                  Dynamic -> [i]
+                  DefDynamic -> [i]
+                  Command _ -> [i]
+                  Primitive _ -> [i]
+                  The -> [i]
+                  Ref -> [i]
+                  Deref -> [i]
+                  Interface _ _ -> [i]
+                  C _String -> [i]
         )
         []
