@@ -48,7 +48,8 @@ module Env
     findChildren,
     findImplementations,
     findAllGlobalVariables,
-    findAllGlobalSymbols,
+    findAllSymbols,
+    findAllForms,
     findModules,
     allImportedEnvs,
     -------------------------
@@ -65,6 +66,7 @@ module Env
 where
 
 import Data.Either (fromRight, rights)
+import Data.Foldable (Foldable (toList))
 import Data.List (foldl', unfoldr)
 import Data.Maybe (fromMaybe)
 import qualified Map
@@ -672,10 +674,68 @@ findAllGlobalVariables e =
     finder acc def@(Binder _ (XObj (Lst (XObj Def _ _ : _)) _ _)) = def : acc
     finder acc _ = acc
 
-findAllGlobalSymbols :: Env -> [Binder]
-findAllGlobalSymbols e =
+findAllSymbols :: Env -> [Binder]
+findAllSymbols e =
   foldl' finder [] (Map.elems (binders e))
   where
     finder :: [Binder] -> Binder -> [Binder]
-    finder acc (Binder _ (XObj (Mod ev _) _ _)) = acc ++ findAllGlobalSymbols (inj ev)
+    finder acc binder@(Binder _ (XObj (Mod ev _) _ _)) = acc ++ [binder] ++ findAllSymbols (inj ev)
     finder acc def = def : acc
+
+findAllForms :: Env -> [XObj]
+findAllForms e =
+  getAllForms (map binderXObj (findAllSymbols e))
+  where
+    getAllForms =
+      foldl
+        ( \memo x ->
+            memo ++ case xobjObj x of
+              Sym _path _mode -> [x]
+              MultiSym _sym _paths -> [x]
+              InterfaceSym _sym -> [x]
+              Num _type _number -> [x]
+              Str _ -> [x]
+              Pattern _ -> [x]
+              Chr _ -> [x]
+              Bol _ -> [x]
+              Lst xObjs -> getAllForms xObjs
+              Arr xObjs -> getAllForms xObjs
+              StaticArr xObjs -> getAllForms xObjs
+              Dict dict -> toList dict
+              Closure _XObj _closureContext -> [x]
+              Defn Nothing -> [x]
+              Defn (Just xObjs) -> toList xObjs
+              Def -> [x]
+              Fn _path xObjs -> toList xObjs
+              Do -> [x]
+              Let -> [x]
+              LocalDef -> [x]
+              While -> [x]
+              Break -> [x]
+              If -> [x]
+              Match _MatchMode -> [x]
+              Mod env _TypeEnv -> findAllForms env
+              Deftype _Ty -> [x]
+              DefSumtype _Ty -> [x]
+              With -> [x]
+              External Nothing -> [x]
+              External (Just _String) -> [x]
+              ExternalType (Just _String) -> [x]
+              ExternalType Nothing -> [x]
+              MetaStub -> [x]
+              Deftemplate _ -> [x]
+              Instantiate _ -> [x]
+              Defalias _ -> [x]
+              SetBang -> [x]
+              Macro -> [x]
+              Dynamic -> [x]
+              DefDynamic -> [x]
+              Command _ -> [x]
+              Primitive _ -> [x]
+              The -> [x]
+              Ref -> [x]
+              Deref -> [x]
+              Interface _ _ -> [x]
+              C _String -> [x]
+        )
+        []

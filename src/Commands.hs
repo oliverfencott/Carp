@@ -977,7 +977,7 @@ commandHover ctx filePathObj lineObj columnObj =
       XObj (Num IntTy (Integral column)) _ _
       ) ->
         do
-          putStrLn (textHover ctx filePath line column)
+          textHover ctx filePath line column
           pure (ctx, dynamicNil)
     _ ->
       pure
