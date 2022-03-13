@@ -486,9 +486,9 @@ findChildren e =
   foldl' getEnv [] (binders e)
   where
     getEnv acc binder =
-      case (nextEnv (modality e) binder) of
+      case nextEnv (modality e) binder of
         Left _ -> acc
-        Right e' -> ((inj e') : acc)
+        Right e' -> inj e' : acc
 
 -- | Find all the environments contained in the modules initial environment,
 -- plus any module environments contained in *those* modules.
@@ -497,8 +497,8 @@ lookupChildren e =
   foldl' go [] (findChildren e)
   where
     go acc e' = case findChildren e' of
-      [] -> (e' : acc)
-      xs -> (foldl' go [] xs ++ acc)
+      [] -> e' : acc
+      xs -> foldl' go [] xs ++ acc
 
 -- | Find all the environments designated by the use paths in an environment.
 findImportedEnvs :: Environment e => e -> [e]
@@ -559,14 +559,14 @@ findImplementations e interface =
 -- parent, should it exist).
 lookupExhuastive :: Environment e => (e -> [e]) -> e -> String -> [(e, Binder)]
 lookupExhuastive f e name =
-  let envs = [e] ++ (f e)
-   in (go (parent e) envs)
+  let envs = e : f e
+   in go (parent e) envs
   where
     go _ [] = []
     go Nothing xs = foldl' accum [] xs
-    go (Just p) xs = go (parent p) (xs ++ [p] ++ (f p))
+    go (Just p) xs = go (parent p) (xs ++ [p] ++ f p)
     accum acc e' = case getBinder e' name of
-      Right b -> ((e', b) : acc)
+      Right b -> (e', b) : acc
       _ -> acc
 
 lookupBinderExhuastive :: Environment e => (e -> [e]) -> e -> String -> [Binder]
@@ -655,7 +655,7 @@ envPublicBindingNames e = concatMap select (Map.toList (binders e))
   where
     select :: (String, Binder) -> [String]
     select (name, binder) =
-      case (nextEnv (modality e) binder) of
+      case nextEnv (modality e) binder of
         Left _ ->
           if metaIsTrue (binderMeta binder) "private" || metaIsTrue (binderMeta binder) "hidden"
             then []

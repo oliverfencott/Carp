@@ -383,8 +383,11 @@ dynamicAnalysisModule =
     path = ["Dynamic", "Analysis"]
     spath = SymPath path
     bindings =
-      Map.fromList ternaries
-    -- TODO: Move this (and subsequent commands) into a dynamic "Analysis" module
+      Map.fromList (unaries ++ ternaries)
+    unaries =
+      let f = addUnaryCommand . spath
+       in [ f "text-document/document-symbol" commandTextDocumentDocumentSymbol "outputs JSON of the available symbols in a document" "(text-document/document-symbol \"my-file.carp\")"
+          ]
     ternaries =
       let f = addTernaryCommand . spath
        in [ f "text-document/hover" commandHover "outputs JSON for the symbol at specified position." "(text-document/hover string int int)"

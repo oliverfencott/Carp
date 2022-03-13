@@ -124,7 +124,7 @@ instance Show Malformed where
           ++ " are not needed."
   show (InvalidApplication xobj) =
     "Expected a function or macro, but got: " ++ pretty xobj
-  show (DoMissingForms) =
+  show DoMissingForms =
     "Expected one or more forms in a `do` form, but got none."
   show (GenericMalformed x) =
     "The form: " ++ pretty x ++ " is malformed"
@@ -149,11 +149,11 @@ data Modifier
 instance Show Modifier where
   show None = ""
   show (DefnQualifiedSyms arg) =
-    "`defn` requires all of its arguments to be unqualified symbols, but the arugment: "
+    "`defn` requires all of its arguments to be unqualified symbols, but the argument: "
       ++ pretty arg
       ++ " is qualified"
   show (DefnNonArrayArgs args) =
-    "`defn` requires an array of arugments, but it got: " ++ pretty args
+    "`defn` requires an array of arguments, but it got: " ++ pretty args
   show (DefnNonSymArgs arg) =
     "`defn` requires an array of symbols as arguments, but the argument: "
       ++ pretty arg
@@ -178,25 +178,27 @@ instance Show Modifier where
   show (LetNonArrayBindings invalid) =
     "`let` requires an array of bindings, but it got: " ++ pretty invalid
   show (FnQualifiedSyms arg) =
-    "`fn` requires all of its arguments to be unqualified symbols, but the arugment: "
+    "`fn` requires all of its arguments to be unqualified symbols, but the argument: "
       ++ pretty arg
       ++ " is qualified"
   show (FnNonArrayArgs args) =
-    "`fn` requires an array of arugments, but it got: " ++ pretty args
+    "`fn` requires an array of arguments, but it got: " ++ pretty args
   show (FnNonSymArgs arg) =
     "`fn` requires an array of symbols as arguments, but the argument: "
       ++ pretty arg
       ++ " is not a symbol"
   show (InvalidWith x) =
-    "`with` requires a symbol as an arugment, but got: " ++ pretty x
+    "`with` requires a symbol as an argument, but got: " ++ pretty x
 
 formatModifier :: Modifier -> String
 formatModifier None = ""
 formatModifier m = "\n  - " ++ show m
 
 -- | Format a malformed form error for printing.
-format :: Malformed -> String
-format e = "[ERROR] " ++ show e
+format :: ExecutionMode -> Malformed -> String
+format executionMode e = case executionMode of
+  Lsp -> "TODO: FORMAT ERRORS FOR LSP"
+  _ -> "[ERROR] " ++ show e
 
 --------------------------------------------------------------------------------
 -- Validation functions
@@ -258,7 +260,7 @@ validateDefn :: [XObj] -> Either Malformed [XObj]
 validateDefn x@(DefnPat _ (UnqualifiedSymPat _) arr@(ArrPat args) _)
   | not (all isSym args) = Left (InvalidArguments arr (DefnNonSymArgs (head (remove isSym args))))
   | not (all isUnqualifiedSym args) =
-    Left (InvalidArguments arr (DefnQualifiedSyms (head (remove isUnqualifiedSym args))))
+      Left (InvalidArguments arr (DefnQualifiedSyms (head (remove isUnqualifiedSym args))))
   | otherwise = pure x
 validateDefn (DefnPat _ (UnqualifiedSymPat _) invalid _) =
   Left (InvalidArguments invalid (DefnNonArrayArgs invalid))
@@ -278,9 +280,9 @@ validateThe the = Left (GenericMalformed (XObj (Lst the) Nothing Nothing))
 validateLet :: [XObj] -> Either Malformed [XObj]
 validateLet x@(LetPat _ arr@(ArrPat binds) _)
   | odd (length binds) =
-    Left (UnevenForms arr (length binds) (LetUnevenForms arr))
+      Left (UnevenForms arr (length binds) (LetUnevenForms arr))
   | not (all isSym (evenIndices binds)) =
-    Left (InvalidBindings arr (LetMalformedBinding (head (remove isSym (evenIndices binds)))))
+      Left (InvalidBindings arr (LetMalformedBinding (head (remove isSym (evenIndices binds)))))
   | otherwise = Right x
 validateLet (LetPat _ invalid _) = Left (InvalidBindings invalid (LetNonArrayBindings invalid))
 validateLet lett = Left (GenericMalformed (XObj (Lst lett) Nothing Nothing))
@@ -290,7 +292,7 @@ validateFn :: [XObj] -> Either Malformed [XObj]
 validateFn x@(FnPat _ arr@(ArrPat args) _)
   | not (all isSym args) = Left (InvalidArguments arr (FnNonSymArgs (head (remove isSym args))))
   | not (all isUnqualifiedSym args) =
-    Left (InvalidArguments arr (FnQualifiedSyms (head (remove isUnqualifiedSym args))))
+      Left (InvalidArguments arr (FnQualifiedSyms (head (remove isUnqualifiedSym args))))
   | otherwise = pure x
 validateFn (FnPat _ invalid _) = Left (InvalidArguments invalid (FnNonArrayArgs invalid))
 validateFn fn = Left (GenericMalformed (XObj (Lst fn) Nothing Nothing))

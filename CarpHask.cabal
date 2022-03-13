@@ -39,6 +39,7 @@ library
                        InitialTypes,
                        Interfaces,
                        Json,
+                       Lsp,
                        Managed,
                        Map,
                        Memory,

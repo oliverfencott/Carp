@@ -185,7 +185,7 @@ eval ctx xobj@(XObj o info ty) preference resolver =
     resolveDef x = x
     eval' form =
       case validate form of
-        Left e -> pure (evalError ctx (format e) (xobjInfo xobj))
+        Left e -> pure (evalError ctx (formatError e) (xobjInfo xobj))
         Right form' ->
           case form' of
             (IfPat _ _ _ _) -> evaluateIf form'
@@ -260,7 +260,7 @@ eval ctx xobj@(XObj o info ty) preference resolver =
             _ ->
               pure (throwErr (IfContainsNonBool cond) ctx (xobjInfo cond))
         Left e -> pure (newCtx, Left e)
-    evaluateIf _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluateIf _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluateThe :: Evaluator
     evaluateThe (ThePat the t value) = do
       (newCtx, evaledValue) <- expandAll (evalDynamic ResolveLocal) ctx value -- TODO: Why expand all here?
@@ -270,7 +270,7 @@ eval ctx xobj@(XObj o info ty) preference resolver =
             okValue <- evaledValue
             Right (XObj (Lst [the, t, okValue]) info ty)
         )
-    evaluateThe _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluateThe _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluateLet :: Evaluator
     evaluateLet (LetPat _ (ArrPat bindings) body) = do
       let binds = unwrapVar (pairwise bindings) []
@@ -309,7 +309,7 @@ eval ctx xobj@(XObj o info ty) preference resolver =
                 Right okX ->
                   pure $ Right (fromRight (error "Failed to eval let binding!!") (bindLetDeclaration (newCtx {contextInternalEnv = origin}) n okX))
                 Left err -> pure $ Left err
-    evaluateLet _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluateLet _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluateFn :: Evaluator
     evaluateFn (FnPat self args body) = do
       (newCtx, expanded) <- macroExpand ctx body
@@ -318,7 +318,7 @@ eval ctx xobj@(XObj o info ty) preference resolver =
           Right b ->
             (newCtx, Right (XObj (Closure (XObj (Lst [self, args, b]) info ty) (CCtx newCtx)) info ty))
           Left err -> (ctx, Left err)
-    evaluateFn _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluateFn _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluateClosure :: Evaluator
     evaluateClosure (AppPat (ClosurePat params body c) args) = do
       (newCtx, evaledArgs) <- foldlM successiveEval (ctx, Right []) args
@@ -330,21 +330,21 @@ eval ctx xobj@(XObj o info ty) preference resolver =
           (ctx', res) <- apply (updater c) body params okArgs
           pure (replaceGlobalEnv newCtx (contextGlobalEnv ctx'), res)
         Left err -> pure (newCtx, Left err)
-    evaluateClosure _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluateClosure _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluateDynamicFn :: Evaluator
     evaluateDynamicFn (AppPat (DynamicFnPat _ params body) args) = do
       (newCtx, evaledArgs) <- foldlM successiveEval (ctx, Right []) args
       case evaledArgs of
         Right okArgs -> apply newCtx body params okArgs
         Left err -> pure (newCtx, Left err)
-    evaluateDynamicFn _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluateDynamicFn _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluateMacro :: Evaluator
     evaluateMacro (AppPat (MacroPat _ params body) args) = do
       (ctx', res) <- apply ctx body params args
       case res of
         Right xobj' -> macroExpand ctx' xobj'
         Left _ -> pure (ctx, res)
-    evaluateMacro _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluateMacro _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluateCommand :: Evaluator
     evaluateCommand (AppPat (CommandPat (NullaryCommandFunction nullary) _ _) []) =
       nullary ctx
@@ -370,8 +370,8 @@ eval ctx xobj@(XObj o info ty) preference resolver =
         Left err -> pure (ctx, Left err)
     -- Should be caught during validation
     evaluateCommand (AppPat (CommandPat _ _ _) _) =
-      pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
-    evaluateCommand _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+      pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluateCommand _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluatePrimitive :: Evaluator
     evaluatePrimitive (AppPat p@(PrimitivePat (NullaryPrimitive nullary) _ _) []) =
       nullary p ctx
@@ -387,14 +387,14 @@ eval ctx xobj@(XObj o info ty) preference resolver =
       variadic p ctx args
     -- Should be caught during validation
     evaluatePrimitive (AppPat (PrimitivePat _ _ _) _) =
-      pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
-    evaluatePrimitive _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+      pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluatePrimitive _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluateApp :: Evaluator
     evaluateApp (AppPat f' args) =
       case f' of
         l@(ListPat _) -> go l ResolveLocal
         sym@(SymPat _ _) -> go sym resolver
-        _ -> pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+        _ -> pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
       where
         go x resolve =
           do
@@ -404,7 +404,7 @@ eval ctx xobj@(XObj o info ty) preference resolver =
                 (newCtx', res) <- eval (pushFrame newCtx xobj) (XObj (Lst (fun : args)) (xobjInfo x) (xobjTy x)) preference ResolveLocal
                 pure (popFrame newCtx', res)
               x' -> pure (newCtx, x')
-    evaluateApp _ = pure (evalError ctx (format (GenericMalformed xobj)) (xobjInfo xobj))
+    evaluateApp _ = pure (evalError ctx (formatError (GenericMalformed xobj)) (xobjInfo xobj))
     evaluateSideEffects :: Evaluator
     evaluateSideEffects forms = do
       foldlM successiveEval' (ctx, dynamicNil) forms
@@ -413,6 +413,11 @@ eval ctx xobj@(XObj o info ty) preference resolver =
           case acc of
             err@(Left _) -> pure (ctx', err)
             Right _ -> eval ctx' x preference resolver
+    formatError = format (contextExecMode ctx)
+
+-- case contextExecMode ctx of
+--   Lsp -> format e
+--   _ -> format e
 
 macroExpand :: Context -> XObj -> IO (Context, Either EvalError XObj)
 macroExpand ctx xobj =

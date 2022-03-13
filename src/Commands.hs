@@ -1,6 +1,6 @@
 module Commands where
 
-import Analysis (textHover)
+import Analysis (textDocumentDocumentSymbol, textHover)
 import BuildInfo
 import ColorText
 import Context
@@ -984,5 +984,22 @@ commandHover ctx filePathObj lineObj columnObj =
         ( evalError
             ctx
             "'text-document/hover' arguments must be a string (filepath), an int (line) and another int (columnn)"
+            Nothing
+        )
+
+commandTextDocumentDocumentSymbol :: UnaryCommandCallback
+commandTextDocumentDocumentSymbol ctx filePathObj =
+  case filePathObj of
+    (XObj (Str filePath) _ _) ->
+      do
+        textDocumentDocumentSymbol ctx filePath
+        pure (ctx, dynamicNil)
+      where
+        _f = ()
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'text-document/document-symbol' argument must be a string (filepath)"
             Nothing
         )

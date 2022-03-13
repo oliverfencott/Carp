@@ -2,6 +2,7 @@ module Main where
 
 import ColorText
 import Control.Monad (foldM, when)
+import Data.Function ((&))
 import Data.Maybe
 import Eval
 import GHC.IO.Encoding
@@ -143,9 +144,12 @@ main = do
           >>= load argFilesToLoad
           >>= execStrs "Postload" postloads
           >>= \ctx -> case execMode of
-            Lsp -> do
-              putStrLn "Welcome to Carp 0.5.4"
-              snd <$> runRepl ctx
+            Lsp ->
+              do
+                putStrLn "Welcome to Carp 0.5.4"
+                snd <$> runRepl ctx
+                -- Is this required?
+                pure ctx
             Repl -> do
               putStrLn "Welcome to Carp 0.5.4"
               putStrLn "This is free software with ABSOLUTELY NO WARRANTY."
