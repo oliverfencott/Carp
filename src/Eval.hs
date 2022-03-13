@@ -20,6 +20,7 @@ import Expand
 import Forms
 import Infer
 import Info
+import Json (printJson)
 import qualified Map
 import qualified Meta
 import Obj
@@ -80,7 +81,7 @@ eval ctx xobj@(XObj o info ty) preference resolver =
     Sym spath@(SymPath p n) _ ->
       pure $
         case resolver of
-          ResolveGlobal -> unwrapLookup ((tryAllLookups preference) >>= checkStatic)
+          ResolveGlobal -> unwrapLookup (tryAllLookups preference >>= checkStatic)
           ResolveLocal -> unwrapLookup (tryAllLookups preference)
       where
         checkStatic v@(_, Right (XObj (Lst ((XObj obj _ _) : _)) _ _)) =
@@ -95,10 +96,10 @@ eval ctx xobj@(XObj o info ty) preference resolver =
         -- Try all lookups performs lookups for symbols based on a given
         -- lookup preference.
         tryAllLookups :: LookupPreference -> Maybe (Context, Either EvalError XObj)
-        tryAllLookups PreferDynamic = (getDynamic) <|> fullLookup
-        tryAllLookups PreferGlobal = (getGlobal spath) <|> fullLookup
-        tryAllLookups (PreferLocal shadows) = (if spath `elem` shadows then (getLocal n) else (getDynamic)) <|> fullLookup
-        fullLookup = (tryDynamicLookup <|> (if null p then tryInternalLookup spath <|> tryLookup spath else tryLookup spath))
+        tryAllLookups PreferDynamic = getDynamic <|> fullLookup
+        tryAllLookups PreferGlobal = getGlobal spath <|> fullLookup
+        tryAllLookups (PreferLocal shadows) = (if spath `elem` shadows then getLocal n else getDynamic) <|> fullLookup
+        fullLookup = tryDynamicLookup <|> (if null p then tryInternalLookup spath <|> tryLookup spath else tryLookup spath)
         getDynamic :: Maybe (Context, Either EvalError XObj)
         getDynamic =
           do
@@ -126,34 +127,32 @@ eval ctx xobj@(XObj o info ty) preference resolver =
         -- But for now, it seems to be needed for some cases.
         tryInternalLookup :: SymPath -> Maybe (Context, Either EvalError XObj)
         tryInternalLookup path =
-          --trace ("Looking for internally " ++ show path) -- ++ show (fmap (fmap E.binders . E.parent) (contextInternalEnv ctx)))
-          ( contextInternalEnv ctx
-              >>= \e ->
-                maybeId (E.searchValueBinder e path)
-                  >>= \(Binder meta found) -> checkPrivate meta found
-          )
+          -- trace ("Looking for internally " ++ show path) -- ++ show (fmap (fmap E.binders . E.parent) (contextInternalEnv ctx)))
+          contextInternalEnv ctx
+            >>= \e ->
+              maybeId (E.searchValueBinder e path)
+                >>= \(Binder meta found) -> checkPrivate meta found
         tryLookup :: SymPath -> Maybe (Context, Either EvalError XObj)
         tryLookup path =
           ( maybeId (E.searchValueBinder (contextGlobalEnv ctx) path)
               >>= \(Binder meta found) -> checkPrivate meta found
           )
-            <|> ( (maybeId (E.searchValueBinder (contextGlobalEnv ctx) (SymPath ((contextPath ctx) ++ p) n)))
+            <|> ( maybeId (E.searchValueBinder (contextGlobalEnv ctx) (SymPath (contextPath ctx ++ p) n))
                     >>= \(Binder meta found) -> checkPrivate meta found
                 )
             <|> ( maybeId (lookupBinderInTypeEnv ctx path)
                     >>= \(Binder _ found) -> pure (ctx, Right (resolveDef found))
                 )
-            <|> ( foldl
-                    (<|>)
-                    Nothing
-                    ( map
-                        ( \(SymPath p' n') ->
-                            maybeId (E.searchValueBinder (contextGlobalEnv ctx) (SymPath (p' ++ (n' : p)) n))
-                              >>= \(Binder meta found) -> checkPrivate meta found
-                        )
-                        (Set.toList (envUseModules (contextGlobalEnv ctx)))
-                    )
-                )
+            <|> foldl
+              (<|>)
+              Nothing
+              ( map
+                  ( \(SymPath p' n') ->
+                      maybeId (E.searchValueBinder (contextGlobalEnv ctx) (SymPath (p' ++ (n' : p)) n))
+                        >>= \(Binder meta found) -> checkPrivate meta found
+                  )
+                  (Set.toList (envUseModules (contextGlobalEnv ctx)))
+              )
         checkPrivate meta found =
           pure $
             if metaIsTrue meta "private"
@@ -221,7 +220,9 @@ eval ctx xobj@(XObj o info ty) preference resolver =
               do
                 (_, evald) <- eval ctx x preference ResolveGlobal
                 case evald of
-                  Left err -> pure (evalError ctx (show err) (xobjInfo xobj))
+                  Left err ->
+                    do
+                      pure (evalError ctx (show err) (xobjInfo xobj))
                   Right x' -> case checkStatic' x' of
                     Right _ -> evaluateApp (self : args)
                     Left er -> pure (ctx, Left er)
@@ -229,7 +230,7 @@ eval ctx xobj@(XObj o info ty) preference resolver =
             (AppPat (SymPat _ _) _) -> evaluateApp form'
             (AppPat (XObj other _ _) _)
               | isResolvableStaticObj other ->
-                pure (ctx, (Left (HasStaticCall xobj info)))
+                  pure (ctx, (Left (HasStaticCall xobj info)))
             [] -> pure (ctx, dynamicNil)
             _ -> pure (throwErr (UnknownForm xobj) ctx (xobjInfo xobj))
     checkStatic' (XObj Def _ _) = Left (HasStaticCall xobj info)
@@ -563,7 +564,7 @@ executeCommand ctx@(Context env _ _ _ _ _ _ _) xobj =
     (newCtx, result) <- if xobjIsSexp xobj then evalStatic ResolveGlobal ctx xobj else evalDynamic ResolveGlobal ctx xobj
     case result of
       Left e@EvalError {} -> do
-        reportExecutionError newCtx (show e)
+        reportExecutionError newCtx e
         pure (xobj, newCtx)
       -- special case: calling something static at the repl
       Right (XObj (Lst (XObj (Lst (XObj (Defn _) _ _ : (XObj (Sym (SymPath [] "main") _) _ _) : _)) _ _ : _)) _ _) ->
@@ -579,7 +580,7 @@ executeCommand ctx@(Context env _ _ _ _ _ _ _) xobj =
           ctxWithDeps <- liftIO $ foldM (define True) nc (map Qualified deps)
           executeCommand ctxWithDeps (withBuildAndRun (buildMainFunction ann))
         Left err -> do
-          reportExecutionError nc (show err)
+          reportExecutionError nc err
           pure (xobj', nc)
     withBuildAndRun xobj' =
       XObj
@@ -602,13 +603,17 @@ executeCommand ctx@(Context env _ _ _ _ _ _ _) xobj =
     xobjIsSexp (XObj (Lst (XObj (Sym (SymPath [] "s-expr") Symbol) _ _ : _)) _ _) = True
     xobjIsSexp _ = False
 
-reportExecutionError :: Context -> String -> IO ()
+reportExecutionError :: Context -> EvalError -> IO ()
 reportExecutionError ctx errorMessage =
   case contextExecMode ctx of
-    Check -> putStrLn errorMessage
+    Check -> print errorMessage
+    Lsp ->
+      case errorMessage of
+        HasStaticCall _ _ -> print errorMessage
+        EvalError msg _ _ _ -> putStrLn msg
     _ ->
       do
-        emitErrorBare errorMessage
+        emitErrorBare (show errorMessage)
         throw CancelEvaluationException
 
 -- | Decides what to do when the evaluation fails for some reason.
@@ -621,6 +626,7 @@ catcher ctx exception =
   where
     stop rc =
       case contextExecMode ctx of
+        Lsp -> pure ctx
         Repl -> pure ctx
         Build -> exitWith (ExitFailure rc)
         Install _ -> exitWith (ExitFailure rc)
@@ -704,13 +710,19 @@ annotateWithinContext ctx xobj = do
         Right expanded ->
           let xobjFullSymbols = qualify ctx expanded
            in case xobjFullSymbols of
-                Left err -> pure (evalError ctx (show err) (xobjInfo xobj))
+                Left err ->
+                  case contextExecMode ctx of
+                    Check -> pure (evalError ctx (show err) (xobjInfo xobj))
+                    -- TODO: This shouldn't just 'show'; produce lsp messages
+                    Lsp -> pure (evalError ctx (printJson (toLspMessage err)) (xobjInfo xobj))
+                    _ -> pure (evalError ctx (show err) (xobjInfo xobj))
                 Right xs ->
                   case annotate typeEnv globalEnv xs okSig of
                     Left err ->
                       -- TODO: Replace this with a single call to evalError (which already checks the execution mode)
                       case contextExecMode ctx of
                         Check -> pure (evalError ctx (joinLines (machineReadableErrorStrings fppl err)) Nothing)
+                        Lsp -> pure (evalError ctx (lspErrorStrings err) Nothing)
                         _ -> pure (evalError ctx (show err) (xobjInfo xobj))
                     Right ok -> pure (ctx, Right ok)
 

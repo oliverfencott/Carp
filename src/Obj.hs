@@ -12,6 +12,7 @@ import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Info
+import Json (Json (JsonMap, JsonNull, JsonNumber))
 import qualified Map
 import Project
 import qualified Set
@@ -588,7 +589,7 @@ instance Show EvalError where
 -- | Get the type of an XObj as a string.
 typeStr :: XObj -> String
 typeStr xobj = case xobjTy xobj of
-  Nothing -> "" --" : _"
+  Nothing -> "" -- " : _"
   Just t -> " : " ++ show t
 
 -- | Get the identifier of an XObj as a string.
@@ -972,7 +973,6 @@ defineArrayTypeAlias t = defineTypeAlias (tyToC t) (StructTy (ConcreteNameTy (Sy
 defineStaticArrayTypeAlias :: Ty -> XObj
 defineStaticArrayTypeAlias t = defineTypeAlias (tyToC t) (StructTy (ConcreteNameTy (SymPath [] "Array")) [])
 
--- |
 defineInterface :: String -> Ty -> [SymPath] -> Maybe Info -> XObj
 defineInterface name t paths info =
   XObj
@@ -989,7 +989,14 @@ forceTy :: XObj -> Ty
 forceTy xobj = fromMaybe (error ("No type in " ++ show xobj)) (xobjTy xobj)
 
 -- | How should the compiler be run? Interactively or just build / build & run and then quit?
-data ExecutionMode = Repl | Build | BuildAndRun | Install String | Check deriving (Show, Eq)
+data ExecutionMode
+  = Lsp
+  | Repl
+  | Build
+  | BuildAndRun
+  | Install String
+  | Check
+  deriving (Show, Eq)
 
 -- | Information needed by the REPL
 data Context = Context
@@ -1163,3 +1170,35 @@ walk :: (XObj -> XObj) -> XObj -> XObj
 walk f (XObj (Arr xs) i t) = XObj (Arr (map (walk f) xs)) i t
 walk f (XObj (Lst xs) i t) = XObj (Lst (map (walk f) xs)) i t
 walk f x = f x
+
+xobjToRange :: XObj -> Json
+xobjToRange t =
+  case xobjInfo t of
+    Nothing -> JsonNull
+    Just info ->
+      JsonMap [start, end]
+      where
+        start =
+          ( "start",
+            JsonMap
+              [ ("line", JsonNumber (show (line - 1))),
+                ("character", JsonNumber (show (column - 1)))
+              ]
+          )
+        end =
+          ( "end",
+            JsonMap
+              [ ("line", JsonNumber (show line)),
+                ( "character",
+                  JsonNumber
+                    ( show
+                        ( column
+                            + (nameLength - 1)
+                        )
+                    )
+                )
+              ]
+          )
+        line = infoLine info
+        column = infoColumn info
+        nameLength = length (getName t)

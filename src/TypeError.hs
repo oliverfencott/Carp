@@ -4,6 +4,7 @@ import Constraints
 import Data.List (nub)
 import Data.Maybe (fromMaybe)
 import Info
+import Json (Json (JsonList, JsonMap, JsonNumber, JsonString), printJson)
 import qualified Map
 import Obj
 import Project
@@ -161,7 +162,7 @@ instance Show TypeError where
           else s
       beautifulTy = beautifyTy mappings . recursiveLookupTy mappings
       showTy = show . beautifulTy
-      showObjTy = fromMaybe "Type missing" . fmap showTy . xobjTy
+      showObjTy = maybe "Type missing" showTy . xobjTy
       showObj o =
         "\n\n  " ++ pretty o ++ " : " ++ showObjTy o
           ++ "\n  At "
@@ -222,7 +223,7 @@ instance Show TypeError where
       ++ "\n\nYou’ll have to copy the return value using `@`."
   show (GettingReferenceToUnownedValue xobj) =
     "You’re referencing a given-away value `" ++ pretty xobj ++ "` at "
-      ++ prettyInfoFromXObj xobj --"' (expression " ++ freshVar i ++ ") at " ++
+      ++ prettyInfoFromXObj xobj -- "' (expression " ++ freshVar i ++ ") at " ++
       ++ "\n"
       ++ show xobj
       ++ "\n\nYou’ll have to copy the value using `@`."
@@ -446,6 +447,254 @@ machineReadableErrorStrings fppl err =
     _ ->
       [show err]
 
+lspErrorStrings :: TypeError -> String
+lspErrorStrings err =
+  printJson publishDiagnosticsParams
+  where
+    msg = case err of
+      (UnificationFailed (Constraint _ b aObj _ _ _) mappings _) ->
+        "Inferred `" ++ showTypeFromXObj mappings aObj ++ "`, can't unify with `" ++ show (recursiveLookupTy mappings b) ++ "`."
+      (DefnMissingType xobj) ->
+        "Function definition '" ++ getName xobj ++ "' missing type."
+      (DefMissingType xobj) ->
+        "Variable definition '" ++ getName xobj ++ "' missing type."
+      (ExpressionMissingType xobj) ->
+        "Expression '" ++ pretty xobj ++ "' missing type."
+      (SymbolNotDefined symPath _xobj _) ->
+        "Trying to refer to an undefined symbol '" ++ show symPath ++ "'."
+      (SymbolMissingType xobj _) ->
+        "Symbol '" ++ getName xobj ++ "' missing type."
+      (InvalidObj (Defn _) _xobj) ->
+        "Invalid function definition."
+      (InvalidObj If _xobj) ->
+        "Invalid if-statement."
+      (InvalidObj o _xobj) ->
+        "Invalid obj '" ++ show o ++ "'."
+      (CantUseDerefOutsideFunctionApplication _xobj) ->
+        "Can't use 'deref' / '~' outside function application."
+      (WrongArgCount xobj expected actual) ->
+        "Wrong argument count in call to '" ++ getName xobj ++ "' (expected " ++ show expected ++ ", received " ++ show actual ++ ")."
+      (NotAFunction xobj) ->
+        "Trying to call non-function '" ++ getName xobj ++ "'."
+      (NoStatementsInDo _xobj) ->
+        "The do-statement has no expressions inside of it."
+      (TooManyFormsInBody _xobj) ->
+        "Too many expressions in body position."
+      (NoFormsInBody _xobj) ->
+        "No expressions in body position."
+      (CantDisambiguate _xobj originalName theType options) ->
+        "Can't disambiguate symbol '" ++ originalName ++ "' of type " ++ show theType
+          ++ "\nPossibilities:\n    "
+          ++ joinWith "\n    " (map (\(t, p) -> show p ++ " : " ++ show t) options)
+      (CantDisambiguateInterfaceLookup _xobj name theType options) ->
+        "Can't disambiguate interface lookup symbol '" ++ name ++ "' of type " ++ show theType
+          ++ "\nPossibilities:\n    "
+          ++ joinWith "\n    " (map (\(t, p) -> show p ++ " : " ++ show t) options)
+      (SeveralExactMatches _xobj name theType options) ->
+        "Several exact matches for interface lookup symbol '" ++ name ++ "' of type " ++ show theType ++ "\nPossibilities:\n    " ++ joinWith "\n    " (map (\(t, p) -> show p ++ " : " ++ show t) options)
+      (NoMatchingSignature _xobj originalName theType options) ->
+        "Can't find matching lookup for symbol '" ++ originalName ++ "' of type " ++ show theType
+          ++ "\nNone of the possibilities have the correct signature:\n    "
+          ++ joinWith
+            "\n    "
+            (map (\(t, p) -> show p ++ " : " ++ show t) options)
+      (LeadingColon xobj) ->
+        "Symbol '" ++ pretty xobj ++ "' starting with a colon (reserved for REPL shortcuts)."
+      -- (HolesFound holes) ->
+      --   (map (\(name "\n***`\n" ++, t) -> machineReadableInfoFromXObj fppl xobj ++ " " ++ name ++ " : " ++ show t) holes)
+
+      -- TODO: Remove overlapping errors:
+      (NotAValidType xobj) ->
+        "Not a valid type: " ++ pretty xobj ++ "."
+      (NotAType xobj) ->
+        "Can't understand the type '" ++ pretty xobj ++ "'."
+      (FunctionsCantReturnRefTy xobj t) ->
+        "Functions can't return references. " ++ getName xobj ++ " : " ++ show t ++ "."
+      (LetCantReturnRefTy xobj t) ->
+        "Let-expressions can't return references. '" ++ pretty xobj ++ "' : " ++ show t ++ "."
+      (GettingReferenceToUnownedValue xobj) ->
+        "Referencing a given-away value '" ++ pretty xobj ++ "'."
+      (UsingUnownedValue xobj) ->
+        "Using a given-away value '" ++ pretty xobj ++ "'."
+      (UsingCapturedValue xobj) ->
+        "Using a captured value '" ++ pretty xobj ++ "'."
+      (ArraysCannotContainRefs xobj) ->
+        "Arrays can't contain references: '" ++ pretty xobj ++ "'."
+      (MainCanOnlyReturnUnitOrInt _xobj t) ->
+        "Main function can only return Int or (), got " ++ show t ++ "."
+      (MainCannotHaveArguments _xobj c) ->
+        "Main function can not have arguments, got " ++ show c ++ "."
+      (TooManyAnnotateCalls xobj) ->
+        "Too many annotate calls (infinite loop) when annotating '" ++ pretty xobj ++ "'."
+      (CannotSet xobj) ->
+        "Can't set! '" ++ pretty xobj ++ "'."
+      (CannotSetVariableFromLambda variable _) ->
+        "Can't set! '" ++ pretty variable ++ "' from inside of a lambda."
+      (CannotConcretize xobj) ->
+        "Unable to concretize '" ++ pretty xobj ++ "'."
+      (DoesNotMatchSignatureAnnotation xobj sigTy) ->
+        "Definition does not match 'sig' annotation " ++ show sigTy ++ ", actual type is " ++ show (forceTy xobj)
+      (CannotMatch xobj) ->
+        "Can't match '" ++ pretty xobj ++ "'."
+      (InvalidSumtypeCase xobj) ->
+        "Failed to convert '" ++ pretty xobj ++ "' to a sumtype case."
+      (InvalidMemberType t _xobj) ->
+        "Can't use '" ++ show t ++ "' as a type for a member variable."
+      (NotAmongRegisteredTypes t _xobj) ->
+        "The type '" ++ show t ++ "' isn't defined."
+      (UnevenMembers xobjs) ->
+        "Uneven nr of members / types: " ++ joinWithComma (map pretty xobjs)
+      (InvalidLetBinding xobjs (sym, expr)) ->
+        "Invalid let binding `" ++ pretty sym ++ pretty expr ++ "` at " ++ joinWithComma (map pretty xobjs)
+      (DuplicateBinding xobj) ->
+        "Duplicate binding `" ++ pretty xobj ++ "` inside `let`."
+      (DefinitionsMustBeAtToplevel xobj) ->
+        "Definition not at top level: `" ++ pretty xobj ++ "`"
+      (UsingDeadReference xobj _) ->
+        "The reference '" ++ pretty xobj ++ "' isn't alive."
+      (UninhabitedConstructor ty xobj got wanted) ->
+        "Can't use a struct or sumtype constructor without arguments as a member type at " ++ prettyInfoFromXObj xobj ++ ". The type constructor " ++ show ty ++ " expects " ++ show wanted ++ " arguments but got " ++ show got
+      (InconsistentKinds varName xobjs) ->
+        "The type variable `" ++ varName ++ "` is used inconsistently: " ++ joinWithComma (map pretty (filter (doesTypeContainTyVarWithName varName . fromMaybe Universe . xobjToTy) xobjs)) ++ " Type variables must be applied to the same number of arguments."
+      (FailedToAddLambdaStructToTyEnv path xobj) ->
+        "Failed to add the lambda: " ++ show path ++ " represented by struct: "
+          ++ pretty xobj
+          ++ " to the type environment."
+      _ ->
+        show err
+    xObj = case err of
+      SymbolMissingType x _ -> Just x
+      DefnMissingType x -> Just x
+      DefMissingType x -> Just x
+      ExpressionMissingType x -> Just x
+      SymbolNotDefined _ x _ -> Just x
+      InvalidObj _ x -> Just x
+      InvalidObjExample _ x _ -> Just x
+      CantUseDerefOutsideFunctionApplication x -> Just x
+      NotAType x -> Just x
+      WrongArgCount x _ _ -> Just x
+      NotAFunction x -> Just x
+      NoStatementsInDo x -> Just x
+      TooManyFormsInBody x -> Just x
+      NoFormsInBody x -> Just x
+      LeadingColon x -> Just x
+      CantDisambiguate x _ _ _ -> Just x
+      CantDisambiguateInterfaceLookup x _ _ _ -> Just x
+      SeveralExactMatches x _ _ _ -> Just x
+      NoMatchingSignature x _ _ _ -> Just x
+      NotAValidType x -> Just x
+      FunctionsCantReturnRefTy x _ -> Just x
+      LetCantReturnRefTy x _ -> Just x
+      GettingReferenceToUnownedValue x -> Just x
+      UsingUnownedValue x -> Just x
+      UsingCapturedValue x -> Just x
+      ArraysCannotContainRefs x -> Just x
+      MainCanOnlyReturnUnitOrInt x _Ty -> Just x
+      MainCannotHaveArguments x _Int -> Just x
+      CannotConcretize x -> Just x
+      TooManyAnnotateCalls x -> Just x
+      CannotSet x -> Just x
+      CannotSetVariableFromLambda x _ -> Just x
+      DoesNotMatchSignatureAnnotation x _ -> Just x
+      CannotMatch x -> Just x
+      InvalidSumtypeCase x -> Just x
+      InvalidMemberType _ x -> Just x
+      InvalidMemberTypeWhenConcretizing _ x _ -> Just x
+      NotAmongRegisteredTypes _ x -> Just x
+      DuplicateBinding x -> Just x
+      DefinitionsMustBeAtToplevel x -> Just x
+      UsingDeadReference x _ -> Just x
+      UninhabitedConstructor _ x _ _ -> Just x
+      FailedToAddLambdaStructToTyEnv _ x -> Just x
+      InvalidStructField x -> Just x
+      (UnificationFailed (Constraint _ _ aObj _ _ _) _ _) -> Just aObj
+      HolesFound _ -> Nothing
+      UnevenMembers _ -> Nothing
+      DuplicatedMembers _ -> Nothing
+      InvalidLetBinding _ _ -> Nothing
+      InconsistentKinds _ _ -> Nothing
+      FailedToInstantiateGenericType _Ty -> Nothing
+    codeLabel = case err of
+      SymbolMissingType _ _ -> "SymbolMissingType"
+      DefnMissingType _ -> "DefnMissingType"
+      DefMissingType _ -> "DefMissingType"
+      ExpressionMissingType _ -> "ExpressionMissingType"
+      SymbolNotDefined {} -> "SymbolNotDefined"
+      InvalidObj _ _ -> "InvalidObj"
+      InvalidObjExample {} -> "InvalidObjExample"
+      CantUseDerefOutsideFunctionApplication _ -> "CantUseDerefOutsideFunctionApplication"
+      NotAType _ -> "NotAType"
+      WrongArgCount {} -> "WrongArgCount"
+      NotAFunction _ -> "NotAFunction"
+      NoStatementsInDo _ -> "NoStatementsInDo"
+      TooManyFormsInBody _ -> "TooManyFormsInBody"
+      NoFormsInBody _ -> "NoFormsInBody"
+      LeadingColon _ -> "LeadingColon"
+      CantDisambiguate {} -> "CantDisambiguate"
+      CantDisambiguateInterfaceLookup {} -> "CantDisambiguateInterfaceLookup"
+      SeveralExactMatches {} -> "SeveralExactMatches"
+      NoMatchingSignature {} -> "NoMatchingSignature"
+      NotAValidType _ -> "NotAValidType"
+      FunctionsCantReturnRefTy _ _ -> "FunctionsCantReturnRefTy"
+      LetCantReturnRefTy _ _ -> "LetCantReturnRefTy"
+      GettingReferenceToUnownedValue _ -> "GettingReferenceToUnownedValue"
+      UsingUnownedValue _ -> "UsingUnownedValue"
+      UsingCapturedValue _ -> "UsingCapturedValue"
+      ArraysCannotContainRefs _ -> "ArraysCannotContainRefs"
+      MainCanOnlyReturnUnitOrInt _ _Ty -> "MainCanOnlyReturnUnitOrInt"
+      MainCannotHaveArguments _ _Int -> "MainCannotHaveArguments"
+      CannotConcretize _ -> "CannotConcretize"
+      TooManyAnnotateCalls _ -> "TooManyAnnotateCalls"
+      CannotSet _ -> "CannotSet"
+      CannotSetVariableFromLambda _ _ -> "CannotSetVariableFromLambda"
+      DoesNotMatchSignatureAnnotation _ _ -> "DoesNotMatchSignatureAnnotation"
+      CannotMatch _ -> "CannotMatch"
+      InvalidSumtypeCase _ -> "InvalidSumtypeCase"
+      InvalidMemberType _ _ -> "InvalidMemberType"
+      InvalidMemberTypeWhenConcretizing {} -> "InvalidMemberTypeWhenConcretizing"
+      NotAmongRegisteredTypes _ _ -> "NotAmongRegisteredTypes"
+      DuplicateBinding _ -> "DuplicateBinding"
+      DefinitionsMustBeAtToplevel _ -> "DefinitionsMustBeAtToplevel"
+      UsingDeadReference _ _ -> "UsingDeadReference"
+      UninhabitedConstructor {} -> "UninhabitedConstructor"
+      FailedToAddLambdaStructToTyEnv _ _ -> "FailedToAddLambdaStructToTyEnv"
+      InvalidStructField _ -> "InvalidStructField"
+      UnificationFailed {} -> "UnificationFailed"
+      HolesFound _ -> "HolesFound"
+      UnevenMembers _ -> "UnevenMembers"
+      DuplicatedMembers _ -> "DuplicatedMembers"
+      InvalidLetBinding _ _ -> "InvalidLetBinding"
+      InconsistentKinds _ _ -> "InconsistentKinds"
+      FailedToInstantiateGenericType _Ty -> "FailedToInstantiateGenericType"
+
+    publishDiagnosticsParams =
+      case xObj of
+        Nothing -> JsonString msg -- TODO: These need to still be responses
+        Just t ->
+          case xobjInfo t of
+            Nothing -> JsonString "no XObjInfo" -- TODO: These need to still be responses
+            Just info ->
+              JsonMap [uri, diagnostics]
+              where
+                uri = ("uri", JsonString (infoFile info))
+                diagnostics =
+                  ( "diagnostics",
+                    JsonList
+                      [ JsonMap
+                          [ severity,
+                            message,
+                            range,
+                            code,
+                            source
+                          ]
+                      ]
+                  )
+                severity = ("severity", JsonNumber "1")
+                message = ("message", JsonString msg)
+                code = ("code", JsonString codeLabel)
+                source = ("source", JsonString "carp")
+                range = ("range", xobjToRange t)
+
 joinedMachineReadableErrorStrings :: FilePathPrintLength -> TypeError -> String
 joinedMachineReadableErrorStrings fppl err = joinWith "\n\n" (machineReadableErrorStrings fppl err)
 
@@ -518,9 +767,7 @@ beautifyTy mappings = f
     f (StructTy n typeArgs) = StructTy n (f <$> typeArgs)
     f (RefTy innerTy lifetime) = RefTy (f innerTy) (f lifetime)
     f (PointerTy innerTy) = PointerTy $ f innerTy
-    f t@(VarTy n) = case Map.lookup n bmappings of
-      Just nn -> VarTy nn
-      Nothing -> t
+    f t@(VarTy n) = maybe t VarTy (Map.lookup n bmappings)
     f t = t
     bmappings = beautification mappings
     beautification :: TypeMappings -> Map.Map String String

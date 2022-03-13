@@ -143,6 +143,9 @@ main = do
           >>= load argFilesToLoad
           >>= execStrs "Postload" postloads
           >>= \ctx -> case execMode of
+            Lsp -> do
+              putStrLn "Welcome to Carp 0.5.4"
+              snd <$> runRepl ctx
             Repl -> do
               putStrLn "Welcome to Carp 0.5.4"
               putStrLn "This is free software with ABSOLUTELY NO WARRANTY."
@@ -199,7 +202,8 @@ parseExecMode :: Parser ExecutionMode
 parseExecMode =
   flag' Check (long "check" <> help "Check project")
     <|> flag' Build (short 'b' <> help "Build project")
-    <|> flag' BuildAndRun (short 'x' <> help "Build an run project")
+    <|> flag' BuildAndRun (short 'x' <> help "Build and run project")
+    <|> flag' Lsp (short 'l' <> help "Build and run project in LSP mode")
     <|> Install <$> strOption (short 'i' <> help "Install built product")
     <|> pure Repl
 

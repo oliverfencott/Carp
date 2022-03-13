@@ -66,9 +66,6 @@ textHover ctx filePath line column =
                     ( "value",
                       JsonString
                         ( "\n__" ++ name ++ "__ `" ++ type_ ++ "`\n"
-                            ++ "\n***\n```"
-                            ++ type_
-                            ++ "```\n"
                             ++ "\n***\n"
                             ++ doc
                             ++ file

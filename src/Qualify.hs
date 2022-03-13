@@ -14,6 +14,7 @@ module Qualify
     markQualified,
     qualifyNull,
     getQualifiedPath,
+    toLspMessage,
   )
 where
 
@@ -22,6 +23,7 @@ import Data.Bifunctor
 import Data.Either (fromRight)
 import qualified Env as E
 import Info
+import Json (Json (JsonList, JsonMap, JsonNull, JsonNumber, JsonString))
 import qualified Map
 import Obj
 import qualified Set
@@ -62,6 +64,60 @@ instance Show QualificationError where
       ++ show binders
   show (FailedToFindSymbol xobj) =
     "Couldn't find the xobj: " ++ pretty xobj
+
+toLspMessage :: QualificationError -> Json
+toLspMessage err =
+  JsonMap [uri, diagnostics]
+  where
+    codeLabel = case err of
+      FailedToQualifyDeclarationName _ -> "FailedToQualifyDeclarationName"
+      FailedToQualifySymbols _ -> "FailedToQualifySymbols"
+      FailedToQualifyPath _spath -> "FailedToQualifyPath"
+      NonVariableInMatch _ -> "NonVariableInMatch"
+      NakedInitForUnnamedModule _ -> "NakedInitForUnnamedModule"
+      QualifiedMulti _spath -> "QualifiedMulti"
+      LocalMulti _spath _binders -> "LocalMulti"
+      FailedToFindSymbol _ -> "FailedToFindSymbol"
+    uriValue = case err of
+      FailedToQualifyDeclarationName xobj -> getFile xobj
+      FailedToQualifySymbols xobj -> getFile xobj
+      FailedToQualifyPath _spath -> JsonNull
+      NonVariableInMatch xobj -> getFile xobj
+      NakedInitForUnnamedModule _ -> JsonNull
+      QualifiedMulti _spath -> JsonNull
+      LocalMulti _spath _binders -> JsonNull
+      FailedToFindSymbol xobj -> getFile xobj
+    rangeValue = case err of
+      FailedToQualifyDeclarationName xobj -> xobjToRange xobj
+      FailedToQualifySymbols xobj -> xobjToRange xobj
+      FailedToQualifyPath _spath -> JsonNull
+      NonVariableInMatch xobj -> xobjToRange xobj
+      NakedInitForUnnamedModule _ -> JsonNull
+      QualifiedMulti _spath -> JsonNull
+      LocalMulti _spath _binders -> JsonNull
+      FailedToFindSymbol xobj -> xobjToRange xobj
+    uri = ("uri", uriValue)
+    diagnostics =
+      ( "diagnostics",
+        JsonList
+          [ JsonMap
+              [ severity,
+                message,
+                range,
+                code,
+                source
+              ]
+          ]
+      )
+    message = ("message", JsonString (show err))
+    severity = ("severity", JsonNumber "1")
+    code = ("code", JsonString codeLabel)
+    source = ("source", JsonString "carp")
+    range = ("range", rangeValue)
+    getFile xobj =
+      case xobjInfo xobj of
+        Nothing -> JsonNull
+        Just info -> JsonString (infoFile info)
 
 --------------------------------------------------------------------------------
 -- Data
@@ -244,13 +300,13 @@ qualifyLet typeEnv globalEnv env x@(XObj (Lst [letExpr@(XObj Let _ _), bind@(XOb
   | odd (length bindings) = Right $ Qualified $ XObj (Lst [letExpr, bind, body]) i t -- Leave it untouched for the compiler to find the error.
   | not (all isSym (evenIndices bindings)) = Right $ Qualified $ XObj (Lst [letExpr, bind, body]) i t -- Leave it untouched for the compiler to find the error.
   | otherwise =
-    do
-      let Just ii = i
-          lvl = envFunctionNestingLevel env
-          innerEnv = Env Map.empty (Just env) (Just ("let-env-" ++ show (infoIdentifier ii))) Set.empty InternalEnv lvl
-      (innerEnv', qualifiedBindings) <- foldM qualifyBinding (innerEnv, []) (pairwise bindings)
-      qualifiedBody <- liftM unQualified (setFullyQualifiedSymbols typeEnv globalEnv innerEnv' body)
-      pure (Qualified (XObj (Lst [letExpr, XObj (Arr qualifiedBindings) bindi bindt, qualifiedBody]) i t))
+      do
+        let Just ii = i
+            lvl = envFunctionNestingLevel env
+            innerEnv = Env Map.empty (Just env) (Just ("let-env-" ++ show (infoIdentifier ii))) Set.empty InternalEnv lvl
+        (innerEnv', qualifiedBindings) <- foldM qualifyBinding (innerEnv, []) (pairwise bindings)
+        qualifiedBody <- liftM unQualified (setFullyQualifiedSymbols typeEnv globalEnv innerEnv' body)
+        pure (Qualified (XObj (Lst [letExpr, XObj (Arr qualifiedBindings) bindi bindt, qualifiedBody]) i t))
   where
     qualifyBinding :: (Env, [XObj]) -> (XObj, XObj) -> Either QualificationError (Env, [XObj])
     qualifyBinding (e, bs) (s@(XObj (Sym path _) _ _), o@(XObj (Lst [(XObj (Fn _ _) _ _), _, _]) _ _)) =
@@ -285,10 +341,10 @@ qualifyMatch typeEnv globalEnv env (XObj (Lst (matchExpr@(XObj (Match _) _ _) : 
   -- Leave it untouched for the compiler to find the error.
   | odd (length casesXObjs) = pure $ Qualified $ XObj (Lst (matchExpr : expr : casesXObjs)) i t
   | otherwise =
-    do
-      qualifiedExpr <- pure . unQualified =<< setFullyQualifiedSymbols typeEnv globalEnv env expr
-      qualifiedCases <- pure . map (map unQualified) =<< mapM qualifyCases (pairwise casesXObjs)
-      pure (Qualified (XObj (Lst (matchExpr : qualifiedExpr : concat qualifiedCases)) i t))
+      do
+        qualifiedExpr <- pure . unQualified =<< setFullyQualifiedSymbols typeEnv globalEnv env expr
+        qualifiedCases <- pure . map (map unQualified) =<< mapM qualifyCases (pairwise casesXObjs)
+        pure (Qualified (XObj (Lst (matchExpr : qualifiedExpr : concat qualifiedCases)) i t))
   where
     Just ii = i
     lvl = envFunctionNestingLevel env
