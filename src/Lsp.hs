@@ -30,30 +30,10 @@ documentSymbolToJson (Lsp.DocumentSymbol (Binder meta xobj@(XObj obj (Just info)
     location =
       JsonMap
         [ ("uri", JsonString uri),
-          ("range", range)
-        ]
-    range =
-      JsonMap
-        [ ( "start",
-            start
-          ),
-          ( "end",
-            end
-          )
+          ("range", makeRange info)
         ]
     uri = infoFile info
-    lineStart = infoLine info
-    columnStart = infoColumn info
-    start =
-      JsonMap
-        [ ("line", JsonNumber (show (lineStart - 1))),
-          ("character", JsonNumber (show columnStart))
-        ]
-    end =
-      JsonMap
-        [ ("line", JsonNumber (show lineStart)),
-          ("character", JsonNumber (show (columnStart + 1))) -- TODO: + 1 is a default to see if it actually works
-        ]
+
     kind = case obj of
       Sym {} -> Variable
       MultiSym {} -> Array
@@ -207,3 +187,35 @@ hoverToJson (HoverXObj env xobj) =
           Nothing -> Right ""
           Just x -> unwrapStringXObj x
     name = getName xobj
+
+newtype Location = Location Binder
+
+locationToJson :: Location -> Json
+locationToJson (Location binder) =
+  case xobjInfo (binderXObj binder) of
+    Nothing -> JsonNull
+    Just info ->
+      JsonMap
+        [ ("uri", JsonString ("file://" ++ infoFile info)),
+          ("range", makeRange info)
+        ]
+
+makeRange :: Info -> Json
+makeRange info =
+  range
+  where
+    range =
+      JsonMap [("start", start), ("end", end)]
+
+    lineStart = infoLine info
+    columnStart = infoColumn info
+    start =
+      JsonMap
+        [ ("line", JsonNumber (show (lineStart - 1))),
+          ("character", JsonNumber (show columnStart))
+        ]
+    end =
+      JsonMap
+        [ ("line", JsonNumber (show lineStart)),
+          ("character", JsonNumber (show (columnStart + 1))) -- TODO: + 1 is a default to see if it actually works
+        ]

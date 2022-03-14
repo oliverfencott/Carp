@@ -1,6 +1,6 @@
 module Commands where
 
-import Analysis (debugAllSymbolsInFile, textDocumentDocumentSymbol, textHover)
+import Analysis (debugAllSymbolsInFile, definitionLocation, textDocumentDocumentSymbol, textHover)
 import BuildInfo
 import ColorText
 import Context
@@ -984,6 +984,24 @@ commandHover ctx filePathObj lineObj columnObj =
         ( evalError
             ctx
             "'text-document/hover' arguments must be a string (filepath), an int (line) and another int (columnn)"
+            Nothing
+        )
+
+commandGoToDefinition :: TernaryCommandCallback
+commandGoToDefinition ctx filePathObj lineObj columnObj =
+  case (filePathObj, lineObj, columnObj) of
+    ( XObj (Str filePath) _ _,
+      XObj (Num IntTy (Integral line)) _ _,
+      XObj (Num IntTy (Integral column)) _ _
+      ) ->
+        do
+          definitionLocation ctx filePath line column
+          pure (ctx, dynamicNil)
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'text-document/definition' arguments must be a string (filepath), an int (line) and another int (columnn)"
             Nothing
         )
 

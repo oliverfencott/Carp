@@ -9,7 +9,7 @@ module Analysis where
 import Data.Either
 import Data.Function ((&))
 import Data.List (find, sortBy)
-import Env (findAllSymbols, findAllXObjsInFile, lookupMeta)
+import Env (findAllSymbols, findAllXObjsInFile, lookupMeta, searchValueBinder)
 import Info
 import Json (printJson)
 import Lsp (documentSymbolToJson, hoverToJson)
@@ -121,14 +121,23 @@ textHover ctx filePath line column =
     env = contextGlobalEnv ctx
     allSymbols = findAllXObjsInFile env filePath
     onLine = xobjsOnLine line allSymbols
-    maybeXObj = findObj column onLine
-    findObj :: Int -> [XObj] -> Maybe XObj
-    findObj col xObjList =
-      if col < 0
-        then Nothing
-        else case xobjAtColumn col xObjList of
-          Nothing -> findObj (col - 1) xObjList
-          res -> res
+    maybeXObj = findObjAtColumn column onLine
+
+definitionLocation :: Context -> String -> Int -> Int -> IO ()
+definitionLocation ctx filePath line column =
+  case maybeBinder of
+    Nothing ->
+      pure ()
+    Just binder ->
+      putStrLn (printJson (Lsp.locationToJson (Lsp.Location binder)))
+  where
+    env = contextGlobalEnv ctx
+    allSymbols = findAllXObjsInFile env filePath
+    onLine = xobjsOnLine line allSymbols
+    maybeXObj = findObjAtColumn column onLine
+    maybeBinder =
+      maybeXObj
+        >>= (either (const Nothing) Just . searchValueBinder env . getPath)
 
 xobjsOnLine :: Int -> [XObj] -> [XObj]
 xobjsOnLine line =
@@ -147,3 +156,11 @@ xobjAtColumn column =
           Nothing -> False
           Just i -> infoColumn i == column
     )
+
+findObjAtColumn :: Int -> [XObj] -> Maybe XObj
+findObjAtColumn col xObjList =
+  if col < 0
+    then Nothing
+    else case xobjAtColumn col xObjList of
+      Nothing -> findObjAtColumn (col - 1) xObjList
+      res -> res
