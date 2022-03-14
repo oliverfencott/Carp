@@ -49,8 +49,7 @@ module Env
     findImplementations,
     findAllGlobalVariables,
     findAllSymbols,
-    findAllForms,
-    findAllXObjs,
+    findAllXObjsInFile,
     findModules,
     allImportedEnvs,
     -------------------------
@@ -71,6 +70,8 @@ import Data.Foldable (Foldable (toList))
 import Data.Function ((&))
 import Data.List (foldl', unfoldr)
 import Data.Maybe (fromMaybe)
+import Data.Set (fromList)
+import Info (Info (infoFile))
 import qualified Map
 import qualified Map as Map.Map
 import qualified Meta
@@ -685,99 +686,49 @@ findAllSymbols e =
     finder acc binder@(Binder _ (XObj (Mod ev _) _ _)) = acc ++ [binder] ++ findAllSymbols (inj ev)
     finder acc def = def : acc
 
-findAllXObjs :: Env -> [XObj]
-findAllXObjs e =
+findAllXObjsInFile :: Env -> String -> [XObj]
+findAllXObjsInFile e filePath =
   binders e
+    & Map.filter
+      ( maybe
+          False
+          ( \i ->
+              infoFile i == filePath
+          )
+          . xobjInfo
+          . binderXObj
+      )
     & Map.elems
     & map binderXObj
     & foldl finder []
+    -- This silliness is here just to make it simpler to remove duplicates,
+    -- this should be changed
+    & fromList
+    & toList
   where
     finder :: [XObj] -> XObj -> [XObj]
-    finder memo xobj@(XObj (Lst xobjs) _ _) =
-      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
-    finder memo xobj@(XObj (Arr xobjs) _ _) =
-      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
-    finder memo xobj@(XObj (StaticArr xobjs) _ _) =
-      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
-    finder memo xobj@(XObj (Dict xobjs) _ _) =
-      foldl finder (memo ++ [xobj] ++ extraXOjbs) extraXOjbs
+    finder memo (XObj (Lst xobjs) _ _) =
+      foldl finder memo xobjs
+    finder memo (XObj (Arr xobjs) _ _) =
+      foldl finder memo xobjs
+    finder memo (XObj (StaticArr xobjs) _ _) =
+      foldl finder memo xobjs
+    finder memo (XObj (Dict xobjs) _ _) =
+      foldl finder memo extraXOjbs
       where
         extraXOjbs = concatMap (\(a, b) -> [a, b]) (Map.Map.assocs xobjs)
     finder memo xobj@(XObj (Closure other _) _ _) =
       memo ++ [xobj, other]
     finder memo xobj@(XObj (Defn Nothing) _ _) =
       memo ++ [xobj]
-    finder memo xobj@(XObj (Defn (Just xobjSet)) _ _) =
-      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
+    finder memo (XObj (Defn (Just xobjSet)) _ _) =
+      foldl finder memo xobjs
       where
         xobjs = toList xobjSet
-    finder memo xobj@(XObj (Fn Nothing xobjSet) _ _) =
-      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
+    finder memo (XObj (Fn Nothing xobjSet) _ _) =
+      foldl finder memo xobjs
       where
         xobjs = toList xobjSet
-    finder memo xobj@(XObj (Mod env _) _ _) =
-      memo ++ [xobj] ++ findAllXObjs env
+    finder memo (XObj (Mod env _) _ _) =
+      memo ++ findAllXObjsInFile env filePath
     finder memo xobj = xobj : memo
-
-findAllForms :: Env -> [Binder]
-findAllForms e =
-  getAllForms symbols
-  where
-    symbols = findAllSymbols e
-    binder m o = Binder {binderMeta = m, binderXObj = o}
-    getAllForms :: [Binder] -> [Binder]
-    getAllForms =
-      foldl
-        ( \memo i ->
-            let meta = binderMeta i
-                x = binderXObj i
-             in memo ++ case xobjObj x of
-                  Sym _path _mode -> [i]
-                  MultiSym _sym _paths -> [i]
-                  InterfaceSym _sym -> [i]
-                  Num _type _number -> [i]
-                  Str _ -> [i]
-                  Pattern _ -> [i]
-                  Chr _ -> [i]
-                  Bol _ -> [i]
-                  Lst xObjs -> xObjs & map (binder meta)
-                  Arr xObjs -> xObjs & map (binder meta)
-                  StaticArr xObjs -> xObjs & map (binder meta)
-                  Dict dict -> concatMap (\(a, b) -> [binder meta a, binder meta b]) (Map.assocs dict)
-                  Closure _XObj _closureContext -> [i]
-                  Defn Nothing -> [i]
-                  Defn (Just xObjs) -> toList xObjs & map (binder meta)
-                  Def -> [i]
-                  Fn _path xObjs -> toList xObjs & map (binder meta)
-                  Do -> [i]
-                  Let -> [i]
-                  LocalDef -> [i]
-                  While -> [i]
-                  Break -> [i]
-                  If -> [i]
-                  Match _MatchMode -> [i]
-                  Mod env _TypeEnv -> findAllSymbols env
-                  Deftype _Ty -> [i]
-                  DefSumtype _Ty -> [i]
-                  With -> [i]
-                  External Nothing -> [i]
-                  External (Just _String) -> [i]
-                  ExternalType (Just _String) -> [i]
-                  ExternalType Nothing -> [i]
-                  MetaStub -> [i]
-                  Deftemplate _ -> [i]
-                  Instantiate _ -> [i]
-                  Defalias _ -> [i]
-                  SetBang -> [i]
-                  Macro -> [i]
-                  Dynamic -> [i]
-                  DefDynamic -> [i]
-                  Command _ -> [i]
-                  Primitive _ -> [i]
-                  The -> [i]
-                  Ref -> [i]
-                  Deref -> [i]
-                  Interface _ _ -> [i]
-                  C _String -> [i]
-        )
-        []

@@ -6,74 +6,28 @@
 
 module Analysis where
 
+import Data.Either
 import Data.Function ((&))
 import Data.List (find, sortBy)
-import Env (allImportedEnvs, findAllSymbols, findAllXObjs)
+import Env (findAllSymbols, findAllXObjsInFile, lookupMeta)
 import Info
 import Json (printJson)
 import Lsp (documentSymbolToJson, hoverToJson)
 import qualified Lsp
+import qualified Meta
 import Obj
   ( Binder (binderXObj),
     Context (contextGlobalEnv),
     XObj (xobjInfo, xobjTy),
     getName,
+    getPath,
     pretty,
+    unwrapStringXObj,
   )
 import Prelude hiding (abs)
 
 -- TODO:
 -- - Get everything, not just DEFs
--- - Flatten entire environment in order to find all symbols
-
-textHover :: Context -> String -> Int -> Int -> IO ()
-textHover ctx filePath line column =
-  case maybeBinder of
-    Nothing -> pure ()
-    Just binder ->
-      putStrLn (printJson (hoverToJson (Lsp.Hover binder)))
-  where
-    env = contextGlobalEnv ctx
-    allEnvs = allImportedEnvs env env ++ [env]
-    inFile =
-      concatMap findAllSymbols allEnvs
-        & bindersInFile filePath
-    onLine = bindersOnLine line inFile
-    maybeBinder = findObj column onLine
-    findObj :: Int -> [Binder] -> Maybe Binder
-    findObj col xObjList =
-      if col < 0
-        then Nothing
-        else case binderAtColumn col xObjList of
-          Nothing -> findObj (col - 1) xObjList
-          res -> res
-
-bindersInFile :: String -> [Binder] -> [Binder]
-bindersInFile file =
-  filter
-    ( \binder ->
-        case xobjInfo (binderXObj binder) of
-          Nothing -> False
-          Just info -> infoFile info == file
-    )
-
-bindersOnLine :: Int -> [Binder] -> [Binder]
-bindersOnLine line =
-  filter
-    ( \v ->
-        case xobjInfo (binderXObj v) of
-          Nothing -> False
-          Just i -> infoLine i == line
-    )
-
-binderAtColumn :: Int -> [Binder] -> Maybe Binder
-binderAtColumn column =
-  find
-    ( \v ->
-        case xobjInfo (binderXObj v) of
-          Nothing -> False
-          Just i -> infoColumn i == column
-    )
 
 textDocumentDocumentSymbol :: Context -> String -> IO ()
 textDocumentDocumentSymbol ctx filePath =
@@ -105,31 +59,47 @@ debugAllSymbolsInFile :: Context -> String -> IO ()
 debugAllSymbolsInFile ctx filePath =
   mapM_
     ( \xobj ->
-        do
-          putStrLn ("Name: " ++ getName xobj)
-          putStrLn
-            ( maybe
-                ""
-                ( \info ->
-                    "line: " ++ show (infoLine info) ++ ", column: " ++ show (infoColumn info)
+        let symPath = getPath xobj
+            meta = lookupMeta env symPath
+            doc3 = case meta of
+              Left _ -> Left ""
+              Right m ->
+                case Meta.get "doc" m of
+                  Nothing -> Right ""
+                  Just x -> unwrapStringXObj x
+            doc = either id id doc3
+         in do
+              putStrLn ("Name: " ++ getName xobj)
+              putStrLn ("Doc: " ++ doc)
+              putStrLn
+                ( maybe
+                    ""
+                    ( \info ->
+                        "line: " ++ show (infoLine info) ++ ", column: " ++ show (infoColumn info)
+                    )
+                    (xobjInfo xobj)
                 )
-                (xobjInfo xobj)
-            )
-          putStrLn (maybe "" (\ty -> "Type: " ++ show ty) (xobjTy xobj))
-          print (pretty xobj)
-          putStrLn "\n"
+              putStrLn (maybe "" (\ty -> "Type: " ++ show ty) (xobjTy xobj))
+              print (pretty xobj)
+              putStrLn "\n"
     )
     xobjs
   where
-    globals = findAllXObjs (contextGlobalEnv ctx)
+    env = contextGlobalEnv ctx
+    globals = findAllXObjsInFile env filePath
 
+    -- NOTE: This isn't needed. Just for debugging
     sort a b
-      | aa < bb = LT
-      | aa > bb = GT
-      | otherwise = EQ
+      | lineA < lineB = LT
+      | lineA > lineB = GT
+      | otherwise = if columnA < columnB then LT else if columnA > columnB then GT else EQ
       where
-        aa = maybe 0 infoLine (xobjInfo a)
-        bb = maybe 0 infoLine (xobjInfo b)
+        aInfo = xobjInfo a
+        bInfo = xobjInfo b
+        lineA = maybe 0 infoLine aInfo
+        lineB = maybe 0 infoLine bInfo
+        columnA = maybe 0 infoColumn aInfo
+        columnB = maybe 0 infoColumn bInfo
 
     xobjs =
       globals
@@ -140,3 +110,40 @@ debugAllSymbolsInFile ctx filePath =
                 Just info -> infoFile info == filePath
           )
         & sortBy sort
+
+textHover :: Context -> String -> Int -> Int -> IO ()
+textHover ctx filePath line column =
+  case maybeXObj of
+    Nothing -> pure ()
+    Just xobj ->
+      putStrLn (printJson (hoverToJson (Lsp.HoverXObj env xobj)))
+  where
+    env = contextGlobalEnv ctx
+    allSymbols = findAllXObjsInFile env filePath
+    onLine = xobjsOnLine line allSymbols
+    maybeXObj = findObj column onLine
+    findObj :: Int -> [XObj] -> Maybe XObj
+    findObj col xObjList =
+      if col < 0
+        then Nothing
+        else case xobjAtColumn col xObjList of
+          Nothing -> findObj (col - 1) xObjList
+          res -> res
+
+xobjsOnLine :: Int -> [XObj] -> [XObj]
+xobjsOnLine line =
+  filter
+    ( \v ->
+        case xobjInfo v of
+          Nothing -> False
+          Just i -> infoLine i == line
+    )
+
+xobjAtColumn :: Int -> [XObj] -> Maybe XObj
+xobjAtColumn column =
+  find
+    ( \v ->
+        case xobjInfo v of
+          Nothing -> False
+          Just i -> infoColumn i == column
+    )

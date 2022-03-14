@@ -1,6 +1,6 @@
 module Lsp where
 
-import Data.Either (fromRight)
+import Env (lookupMeta, searchValueBinder)
 import Info (Info (infoColumn, infoFile, infoLine))
 import Json (Json (JsonList, JsonMap, JsonNull, JsonNumber, JsonString))
 import qualified Meta
@@ -161,25 +161,13 @@ instance Show SymbolKind where
   show Operator = "25"
   show TypeParameter = "26"
 
-newtype Hover = Hover Binder
+data Hover
+  = HoverXObj Env XObj
 
 hoverToJson :: Hover -> Json
-hoverToJson (Hover binder) =
+hoverToJson (HoverXObj env xobj) =
   json
   where
-    type_ = maybe "no type found" show (xobjTy (binderXObj binder))
-    file = case xobjInfo (binderXObj binder) of
-      Nothing -> ""
-      Just i ->
-        "\n***\n*"
-          ++ infoFile i
-          ++ ":"
-          ++ show (infoLine i)
-          ++ ":"
-          ++ show (infoColumn i)
-          ++ "*"
-    doc = maybe "" (fromRight "" . unwrapStringXObj) (Meta.get "doc" (binderMeta binder))
-    name = getSimpleName (binderXObj binder)
     json =
       JsonMap
         [ ( "contents",
@@ -189,7 +177,7 @@ hoverToJson (Hover binder) =
                   JsonString
                     ( "\n__" ++ name ++ "__ `" ++ type_ ++ "`\n"
                         ++ "\n***\n"
-                        ++ doc
+                        ++ either id id doc
                         ++ file
                         ++ "\n***\n"
                     )
@@ -197,3 +185,25 @@ hoverToJson (Hover binder) =
               ]
           )
         ]
+    file = case xobjInfo xobj of
+      Nothing -> ""
+      Just i ->
+        "\n***\n*"
+          ++ infoFile i
+          ++ ":"
+          ++ show (infoLine i)
+          ++ ":"
+          ++ show (infoColumn i)
+          ++ "*"
+    symPath = getPath xobj
+    binder = either (const Nothing) Just (searchValueBinder env symPath)
+    fallBackType = maybe "" show (binder >>= (xobjTy . binderXObj))
+    type_ = maybe fallBackType show (xobjTy xobj)
+    meta = lookupMeta env symPath
+    doc = case meta of
+      Left _ -> Left ""
+      Right m ->
+        case Meta.get "doc" m of
+          Nothing -> Right ""
+          Just x -> unwrapStringXObj x
+    name = getName xobj
