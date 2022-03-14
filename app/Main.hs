@@ -148,8 +148,6 @@ main = do
               do
                 putStrLn "Welcome to Carp 0.5.4"
                 snd <$> runRepl ctx
-                -- Is this required?
-                pure ctx
             Repl -> do
               putStrLn "Welcome to Carp 0.5.4"
               putStrLn "This is free software with ABSOLUTELY NO WARRANTY."

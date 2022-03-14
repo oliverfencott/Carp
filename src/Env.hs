@@ -729,6 +729,6 @@ findAllXObjsInFile e filePath =
       foldl finder memo xobjs
       where
         xobjs = toList xobjSet
-    finder memo (XObj (Mod env _) _ _) =
-      memo ++ findAllXObjsInFile env filePath
+    finder memo xobj@(XObj (Mod env _) _ _) =
+      memo ++ [xobj] ++ findAllXObjsInFile env filePath
     finder memo xobj = xobj : memo
