@@ -1,24 +1,22 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use tuple-section" #-}
+{-# HLINT ignore "Use map once" #-}
+{-# HLINT ignore "Fuse mapM_/map" #-}
 
 module Analysis where
 
-import Data.Either (fromRight)
 import Data.Function ((&))
 import Data.List (find)
-import Env (allImportedEnvs, contextEnv, findAllSymbols)
+import Env (allImportedEnvs, findAllSymbols)
 import Info
-import Json (Json (JsonMap, JsonString), printJson)
-import Lsp (toJson)
+import Json (printJson)
+import Lsp (documentSymbolToJson, hoverToJson)
 import qualified Lsp
-import Meta
 import Obj
-  ( Binder (binderMeta, binderXObj),
+  ( Binder (binderXObj),
     Context (contextGlobalEnv),
-    XObj (xobjInfo, xobjTy),
-    getSimpleName,
-    unwrapStringXObj,
+    XObj (xobjInfo),
   )
 import Prelude hiding (abs)
 
@@ -31,45 +29,10 @@ textHover ctx filePath line column =
   case maybeBinder of
     Nothing -> pure ()
     Just binder ->
-      putStrLn (printJson json)
-      where
-        type_ = maybe "no type found" show (xobjTy (binderXObj binder))
-        file = case xobjInfo (binderXObj binder) of
-          Nothing -> ""
-          Just i ->
-            "\n***\n*"
-              ++ infoFile i
-              ++ ":"
-              ++ show (infoLine i)
-              ++ ":"
-              ++ show (infoColumn i)
-              ++ "*"
-        doc = maybe "" (fromRight "" . unwrapStringXObj) (Meta.get "doc" (binderMeta binder))
-        name = getSimpleName (binderXObj binder)
-        json =
-          JsonMap
-            [ ( "contents",
-                JsonMap
-                  [ ("kind", JsonString "markdown"),
-                    ( "value",
-                      JsonString
-                        ( "\n__" ++ name ++ "__ `" ++ type_ ++ "`\n"
-                            ++ "\n***\n"
-                            ++ doc
-                            ++ file
-                            ++ "\n***\n"
-                        )
-                    )
-                  ]
-              )
-            ]
+      putStrLn (printJson (hoverToJson (Lsp.Hover binder)))
   where
     env = contextGlobalEnv ctx
     allEnvs = allImportedEnvs env env ++ [env]
-    -- inFile =
-    --   env
-    --     & findAllForms
-    --     & bindersInFile filePath
     inFile =
       concatMap findAllSymbols allEnvs
         & bindersInFile filePath
@@ -82,41 +45,6 @@ textHover ctx filePath line column =
         else case binderAtColumn col xObjList of
           Nothing -> findObj (col - 1) xObjList
           res -> res
-
--- showBinderInMarkdown :: Binder -> String
--- showBinderInMarkdown xObj = showBinderIndented 0 (getName (binderXObj xObj), binderXObj xObj)
-
--- showBinderIndented :: Int -> (String, XObj) -> String
--- showBinderIndented indent (name, XObj (Mod env tenv) _ _) =
---   replicate indent ' ' ++ name ++ " = {\n\n"
---     ++ showBindings env
---     ++ "\n\n"
---     ++ showBindings (getTypeEnv tenv)
---     ++ "\n\n"
---     ++ replicate indent ' '
---     ++ "}"
---   where
---     showBindings e =
---       joinLines $
---         filter
---           (/= "")
---           ( map
---               ( showBinderIndented (indent + 2) . (\x -> (getName (binderXObj x), binderXObj x))
---               )
---               (findAllForms e)
---           )
--- showBinderIndented indent (name, XObj (Lst [XObj (Interface t paths) _ _, _]) _ _) =
---   replicate indent ' ' ++ name ++ ": " ++ show t ++ " = {\n\n  "
---     ++ joinWith "\n\n  " (map show paths)
---     ++ "\n\n"
---     ++ replicate indent ' '
---     ++ "}"
--- showBinderIndented indent (name, xobj) =
---   replicate indent ' ' ++ name
---     ++ ": "
---     ++ "```"
---     ++ showMaybeTy (xobjTy xobj)
---     ++ " ```"
 
 bindersInFile :: String -> [Binder] -> [Binder]
 bindersInFile file =
@@ -149,36 +77,15 @@ textDocumentDocumentSymbol :: Context -> String -> IO ()
 textDocumentDocumentSymbol ctx filePath =
   do
     putStrLn ("called 'textDocumentDocumentSymbol' with " ++ filePath)
-    -- putStrLn ("Global env: " ++ show (contextGlobalEnv ctx))
-    -- putStrLn ("Internal env: " ++ show (contextInternalEnv ctx))
-    -- Map.assocs
-    mapM_
-      ( \binder ->
-          let xobj = binderXObj binder
-              _meta = binderMeta binder
-              _info = xobjInfo xobj
-           in do
-                -- putStrLn ("Name: " ++ getName xobj)
-                -- putStrLn ("Simple Name: " ++ getSimpleName xobj)
-                -- putStrLn ("Meta: " ++ show meta)
-                -- putStrLn ("Info: " ++ show info)
-                -- putStrLn "\n"
-                putStrLn (printJson (toJson (Lsp.Symbol binder)))
-      )
-      globalEnvSymbols
+    globalEnvSymbols
+      & map Lsp.DocumentSymbol
+      & map documentSymbolToJson
+      & map printJson
+      & mapM_ putStrLn
   where
     globalEnvSymbols =
       contextGlobalEnv ctx
         & findAllSymbols
-        & filter
-          ( \binder ->
-              fileFromBinder binder
-                == filePath
-          )
-    allSymbols =
-      findAllSymbols (contextEnv ctx)
-    _filteredSymbols =
-      allSymbols
         & filter
           ( \binder ->
               fileFromBinder binder

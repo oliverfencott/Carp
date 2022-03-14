@@ -549,6 +549,7 @@ executeStringAtLine line doCatch printResult ctx input fileName =
       let fppl = projectFilePathPrintLength (contextProj ctx')
       case contextExecMode ctx' of
         Check -> putStrLn (machineReadableInfoFromXObj fppl xobj ++ " " ++ e)
+        -- TODO: Emit an LSP error here
         _ -> emitErrorWithLabel "PARSE ERROR" e
       throw CancelEvaluationException
 
@@ -718,7 +719,6 @@ annotateWithinContext ctx xobj = do
                 Left err ->
                   case contextExecMode ctx of
                     Check -> pure (evalError ctx (show err) (xobjInfo xobj))
-                    -- TODO: This shouldn't just 'show'; produce lsp messages
                     Lsp -> pure (evalError ctx (printJson (toLspMessage err)) (xobjInfo xobj))
                     _ -> pure (evalError ctx (show err) (xobjInfo xobj))
                 Right xs ->

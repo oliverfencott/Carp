@@ -1,37 +1,16 @@
 module Lsp where
 
+import Data.Either (fromRight)
 import Info (Info (infoColumn, infoFile, infoLine))
 import Json (Json (JsonList, JsonMap, JsonNull, JsonNumber, JsonString))
 import qualified Meta
 import Obj
 
-newtype Symbol = Symbol Binder
+newtype DocumentSymbol = DocumentSymbol Binder
 
-data SymbolInformation = SymbolInformation
-  { symbolInformationName :: String,
-    symbolInformationKind :: SymbolKind,
-    symbolInformationTags :: [Tag],
-    symbolInformationLocation :: Location
-  }
-
-data Location = Location
-  { locationUri :: String,
-    locationRange :: Range
-  }
-
-data Range = Range
-  { rangeStart :: Position,
-    rangeEnd :: Position
-  }
-
-data Position = Position
-  { positionLine :: Int,
-    positionCharacter :: Int
-  }
-
-toJson :: Symbol -> Json
-toJson (Lsp.Symbol (Binder _ (XObj _ Nothing _))) = JsonNull
-toJson (Lsp.Symbol (Binder meta xobj@(XObj obj (Just info) _))) =
+documentSymbolToJson :: DocumentSymbol -> Json
+documentSymbolToJson (Lsp.DocumentSymbol (Binder _ (XObj _ Nothing _))) = JsonNull
+documentSymbolToJson (Lsp.DocumentSymbol (Binder meta xobj@(XObj obj (Just info) _))) =
   json
   where
     json =
@@ -182,44 +161,39 @@ instance Show SymbolKind where
   show Operator = "25"
   show TypeParameter = "26"
 
--- export interface SymbolInformation {
---     /**
---      * The name of this symbol.
---      */
---     name: string;
---     /**
---      * The kind of this symbol.
---      */
---     kind: SymbolKind;
---     /**
---      * Tags for this completion item.
---      *
---      * @since 3.16.0
---      */
---     tags?: SymbolTag[];
---     /**
---      * Indicates if this symbol is deprecated.
---      *
---      * @deprecated Use tags instead
---      */
---     deprecated?: boolean;
---     /**
---      * The location of this symbol. The location's range is used by a tool
---      * to reveal the location in the editor. If the symbol is selected in the
---      * tool the range's start information is used to position the cursor. So
---      * the range usually spans more than the actual symbol's name and does
---      * normally include thinks like visibility modifiers.
---      *
---      * The range doesn't have to denote a node range in the sense of a abstract
---      * syntax tree. It can therefore not be used to re-construct a hierarchy of
---      * the symbols.
---      */
---     location: Location;
---     /**
---      * The name of the symbol containing this symbol. This information is for
---      * user interface purposes (e.g. to render a qualifier in the user interface
---      * if necessary). It can't be used to re-infer a hierarchy for the document
---      * symbols.
---      */
---     containerName?: string;
--- }
+newtype Hover = Hover Binder
+
+hoverToJson :: Hover -> Json
+hoverToJson (Hover binder) =
+  json
+  where
+    type_ = maybe "no type found" show (xobjTy (binderXObj binder))
+    file = case xobjInfo (binderXObj binder) of
+      Nothing -> ""
+      Just i ->
+        "\n***\n*"
+          ++ infoFile i
+          ++ ":"
+          ++ show (infoLine i)
+          ++ ":"
+          ++ show (infoColumn i)
+          ++ "*"
+    doc = maybe "" (fromRight "" . unwrapStringXObj) (Meta.get "doc" (binderMeta binder))
+    name = getSimpleName (binderXObj binder)
+    json =
+      JsonMap
+        [ ( "contents",
+            JsonMap
+              [ ("kind", JsonString "markdown"),
+                ( "value",
+                  JsonString
+                    ( "\n__" ++ name ++ "__ `" ++ type_ ++ "`\n"
+                        ++ "\n***\n"
+                        ++ doc
+                        ++ file
+                        ++ "\n***\n"
+                    )
+                )
+              ]
+          )
+        ]
