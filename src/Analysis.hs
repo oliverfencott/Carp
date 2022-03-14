@@ -7,8 +7,8 @@
 module Analysis where
 
 import Data.Function ((&))
-import Data.List (find)
-import Env (allImportedEnvs, findAllSymbols)
+import Data.List (find, sortBy)
+import Env (allImportedEnvs, findAllSymbols, findAllXObjs)
 import Info
 import Json (printJson)
 import Lsp (documentSymbolToJson, hoverToJson)
@@ -16,7 +16,9 @@ import qualified Lsp
 import Obj
   ( Binder (binderXObj),
     Context (contextGlobalEnv),
-    XObj (xobjInfo),
+    XObj (xobjInfo, xobjTy),
+    getName,
+    pretty,
   )
 import Prelude hiding (abs)
 
@@ -98,3 +100,43 @@ fileFromBinder binder =
   where
     xobj = binderXObj binder
     info = xobjInfo xobj
+
+debugAllSymbolsInFile :: Context -> String -> IO ()
+debugAllSymbolsInFile ctx filePath =
+  mapM_
+    ( \xobj ->
+        do
+          putStrLn ("Name: " ++ getName xobj)
+          putStrLn
+            ( maybe
+                ""
+                ( \info ->
+                    "line: " ++ show (infoLine info) ++ ", column: " ++ show (infoColumn info)
+                )
+                (xobjInfo xobj)
+            )
+          putStrLn (maybe "" (\ty -> "Type: " ++ show ty) (xobjTy xobj))
+          print (pretty xobj)
+          putStrLn "\n"
+    )
+    xobjs
+  where
+    globals = findAllXObjs (contextGlobalEnv ctx)
+
+    sort a b
+      | aa < bb = LT
+      | aa > bb = GT
+      | otherwise = EQ
+      where
+        aa = maybe 0 infoLine (xobjInfo a)
+        bb = maybe 0 infoLine (xobjInfo b)
+
+    xobjs =
+      globals
+        & filter
+          ( \xobj ->
+              case xobjInfo xobj of
+                Nothing -> False
+                Just info -> infoFile info == filePath
+          )
+        & sortBy sort

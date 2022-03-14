@@ -1,6 +1,6 @@
 module Commands where
 
-import Analysis (textDocumentDocumentSymbol, textHover)
+import Analysis (debugAllSymbolsInFile, textDocumentDocumentSymbol, textHover)
 import BuildInfo
 import ColorText
 import Context
@@ -994,12 +994,27 @@ commandTextDocumentDocumentSymbol ctx filePathObj =
       do
         textDocumentDocumentSymbol ctx filePath
         pure (ctx, dynamicNil)
-      where
-        _f = ()
     _ ->
       pure
         ( evalError
             ctx
             "'text-document/document-symbol' argument must be a string (filepath)"
+            Nothing
+        )
+
+commandDebugAllSymbols :: UnaryCommandCallback
+commandDebugAllSymbols ctx filePathObj =
+  case filePathObj of
+    (XObj (Str filePath) _ _) ->
+      do
+        debugAllSymbolsInFile ctx filePath
+        pure (ctx, dynamicNil)
+      where
+
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'debug-all' argument must be a string (filepath)"
             Nothing
         )

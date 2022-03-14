@@ -386,7 +386,8 @@ dynamicAnalysisModule =
       Map.fromList (unaries ++ ternaries)
     unaries =
       let f = addUnaryCommand . spath
-       in [ f "text-document/document-symbol" commandTextDocumentDocumentSymbol "outputs JSON of the available symbols in a document" "(text-document/document-symbol \"my-file.carp\")"
+       in [ f "text-document/document-symbol" commandTextDocumentDocumentSymbol "outputs JSON of the available symbols in a document" "(text-document/document-symbol \"my-file.carp\")",
+            f "debug-all" commandDebugAllSymbols "prints all symbols in a file" "(debug-all \"my-file.carp\")"
           ]
     ternaries =
       let f = addTernaryCommand . spath

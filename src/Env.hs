@@ -50,6 +50,7 @@ module Env
     findAllGlobalVariables,
     findAllSymbols,
     findAllForms,
+    findAllXObjs,
     findModules,
     allImportedEnvs,
     -------------------------
@@ -71,6 +72,7 @@ import Data.Function ((&))
 import Data.List (foldl', unfoldr)
 import Data.Maybe (fromMaybe)
 import qualified Map
+import qualified Map as Map.Map
 import qualified Meta
 import Obj
 import qualified Set
@@ -682,6 +684,40 @@ findAllSymbols e =
     finder :: [Binder] -> Binder -> [Binder]
     finder acc binder@(Binder _ (XObj (Mod ev _) _ _)) = acc ++ [binder] ++ findAllSymbols (inj ev)
     finder acc def = def : acc
+
+findAllXObjs :: Env -> [XObj]
+findAllXObjs e =
+  binders e
+    & Map.elems
+    & map binderXObj
+    & foldl finder []
+  where
+    finder :: [XObj] -> XObj -> [XObj]
+    finder memo xobj@(XObj (Lst xobjs) _ _) =
+      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
+    finder memo xobj@(XObj (Arr xobjs) _ _) =
+      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
+    finder memo xobj@(XObj (StaticArr xobjs) _ _) =
+      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
+    finder memo xobj@(XObj (Dict xobjs) _ _) =
+      foldl finder (memo ++ [xobj] ++ extraXOjbs) extraXOjbs
+      where
+        extraXOjbs = concatMap (\(a, b) -> [a, b]) (Map.Map.assocs xobjs)
+    finder memo xobj@(XObj (Closure other _) _ _) =
+      memo ++ [xobj, other]
+    finder memo xobj@(XObj (Defn Nothing) _ _) =
+      memo ++ [xobj]
+    finder memo xobj@(XObj (Defn (Just xobjSet)) _ _) =
+      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
+      where
+        xobjs = toList xobjSet
+    finder memo xobj@(XObj (Fn Nothing xobjSet) _ _) =
+      foldl finder (memo ++ [xobj] ++ xobjs) xobjs
+      where
+        xobjs = toList xobjSet
+    finder memo xobj@(XObj (Mod env _) _ _) =
+      memo ++ [xobj] ++ findAllXObjs env
+    finder memo xobj = xobj : memo
 
 findAllForms :: Env -> [Binder]
 findAllForms e =
