@@ -212,10 +212,11 @@ makeRange info =
     start =
       JsonMap
         [ ("line", JsonNumber (show (lineStart - 1))),
-          ("character", JsonNumber (show columnStart))
+          ("character", JsonNumber (show (columnStart - 1)))
         ]
     end =
       JsonMap
         [ ("line", JsonNumber (show lineStart)),
-          ("character", JsonNumber (show (columnStart + 1))) -- TODO: + 1 is a default to see if it actually works
+          ("character", JsonNumber (show columnStart)) -- TODO: Default to see if it actually works. Figure out how to
+          -- do this correctly
         ]
