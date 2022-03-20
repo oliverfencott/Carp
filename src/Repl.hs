@@ -130,7 +130,7 @@ repl line readSoFar prompt =
             let input' = if concatenated == "\n" then contextLastInput context else concatenated -- Entering an empty string repeats last input
             context' <- liftIO $ executeStringAtLine line True True (resetAlreadyLoadedFiles context) (treatSpecialInput input') "REPL"
             lift $ put context'
-            repl (line + (length (filter ('\n' ==) input'))) "" (projectPrompt proj)
+            repl (line + length (filter ('\n' ==) input')) "" (projectPrompt proj)
           _ -> repl line concatenated (if projectBalanceHints proj then balanced else "")
 
 resetAlreadyLoadedFiles :: Context -> Context
