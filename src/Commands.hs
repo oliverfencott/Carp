@@ -1,6 +1,6 @@
 module Commands where
 
-import Analysis (debugAllSymbolsInFile, definitionLocation, textDocumentDocumentSymbol, textHover)
+import Analysis (debugAllSymbolsInFile)
 import BuildInfo
 import ColorText
 import Context
@@ -965,60 +965,38 @@ commandType ctx (XObj x _ _) =
     typeOf Deref = "deref"
     typeOf (Interface _ _) = "interface"
 
--- TODO:
--- - Get everything, not just DEFs
--- - Flatten entire environment in order to find all symbols
--- - Rename function
-commandHover :: TernaryCommandCallback
-commandHover ctx filePathObj lineObj columnObj =
-  case (filePathObj, lineObj, columnObj) of
-    ( XObj (Str filePath) _ _,
-      XObj (Num IntTy (Integral line)) _ _,
-      XObj (Num IntTy (Integral column)) _ _
-      ) ->
-        do
-          textHover ctx filePath line column
-          pure (ctx, dynamicNil)
-    _ ->
-      pure
-        ( evalError
-            ctx
-            "'text-document/hover' arguments must be a string (filepath), an int (line) and another int (columnn)"
-            Nothing
-        )
+-- commandGoToDefinition :: TernaryCommandCallback
+-- commandGoToDefinition ctx filePathObj lineObj columnObj =
+--   case (filePathObj, lineObj, columnObj) of
+--     ( XObj (Str filePath) _ _,
+--       XObj (Num IntTy (Integral line)) _ _,
+--       XObj (Num IntTy (Integral column)) _ _
+--       ) ->
+--         do
+--           definitionLocation ctx filePath line column
+--           pure (ctx, dynamicNil)
+--     _ ->
+--       pure
+--         ( evalError
+--             ctx
+--             "'text-document/definition' arguments must be a string (filepath), an int (line) and another int (columnn)"
+--             Nothing
+--         )
 
-commandGoToDefinition :: TernaryCommandCallback
-commandGoToDefinition ctx filePathObj lineObj columnObj =
-  case (filePathObj, lineObj, columnObj) of
-    ( XObj (Str filePath) _ _,
-      XObj (Num IntTy (Integral line)) _ _,
-      XObj (Num IntTy (Integral column)) _ _
-      ) ->
-        do
-          definitionLocation ctx filePath line column
-          pure (ctx, dynamicNil)
-    _ ->
-      pure
-        ( evalError
-            ctx
-            "'text-document/definition' arguments must be a string (filepath), an int (line) and another int (columnn)"
-            Nothing
-        )
-
-commandTextDocumentDocumentSymbol :: UnaryCommandCallback
-commandTextDocumentDocumentSymbol ctx filePathObj =
-  case filePathObj of
-    (XObj (Str filePath) _ _) ->
-      do
-        textDocumentDocumentSymbol ctx filePath
-        pure (ctx, dynamicNil)
-    _ ->
-      pure
-        ( evalError
-            ctx
-            "'text-document/document-symbol' argument must be a string (filepath)"
-            Nothing
-        )
+-- commandTextDocumentDocumentSymbol :: UnaryCommandCallback
+-- commandTextDocumentDocumentSymbol ctx filePathObj =
+--   case filePathObj of
+--     (XObj (Str filePath) _ _) ->
+--       do
+--         textDocumentDocumentSymbol ctx filePath
+--         pure (ctx, dynamicNil)
+--     _ ->
+--       pure
+--         ( evalError
+--             ctx
+--             "'text-document/document-symbol' argument must be a string (filepath)"
+--             Nothing
+--         )
 
 commandDebugAllSymbols :: UnaryCommandCallback
 commandDebugAllSymbols ctx filePathObj =
@@ -1036,3 +1014,20 @@ commandDebugAllSymbols ctx filePathObj =
             "'debug-all' argument must be a string (filepath)"
             Nothing
         )
+
+-- commandTextDocumentCompletion :: UnaryCommandCallback
+-- commandTextDocumentCompletion ctx filePathObj =
+--   case filePathObj of
+--     (XObj (Str filePath) _ _) ->
+--       do
+--         textDocumentCompletion ctx filePath
+
+--         pure (ctx, dynamicNil)
+--       where
+--     _ ->
+--       pure
+--         ( evalError
+--             ctx
+--             "'text-document/completion' argument must be a string (filepath)"
+--             Nothing
+--         )

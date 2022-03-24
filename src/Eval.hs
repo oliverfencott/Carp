@@ -2,6 +2,7 @@
 
 module Eval where
 
+import Analysis (definitionLocation, textDocumentCompletion, textDocumentDocumentSymbol, textHover)
 import ColorText
 import Commands
 import Context
@@ -415,10 +416,6 @@ eval ctx xobj@(XObj o info ty) preference resolver =
             Right _ -> eval ctx' x preference resolver
     formatError = format (contextExecMode ctx)
 
--- case contextExecMode ctx of
---   Lsp -> format e
---   _ -> format e
-
 macroExpand :: Context -> XObj -> IO (Context, Either EvalError XObj)
 macroExpand ctx xobj =
   case xobj of
@@ -613,7 +610,7 @@ reportExecutionError :: Context -> EvalError -> IO ()
 reportExecutionError ctx errorMessage =
   case contextExecMode ctx of
     Check -> print errorMessage
-    Lsp ->
+    Analysis ->
       case errorMessage of
         HasStaticCall _ _ -> print errorMessage
         EvalError msg _ _ _ -> putStrLn msg
@@ -632,7 +629,7 @@ catcher ctx exception =
   where
     stop rc =
       case contextExecMode ctx of
-        Lsp -> pure ctx
+        Analysis -> pure ctx
         Repl -> pure ctx
         Build -> exitWith (ExitFailure rc)
         Install _ -> exitWith (ExitFailure rc)
@@ -719,7 +716,7 @@ annotateWithinContext ctx xobj = do
                 Left err ->
                   case contextExecMode ctx of
                     Check -> pure (evalError ctx (show err) (xobjInfo xobj))
-                    Lsp -> pure (evalError ctx (printJson (toLspMessage err)) (xobjInfo xobj))
+                    Analysis -> pure (evalError ctx (printJson (toLspMessage err)) (xobjInfo xobj))
                     _ -> pure (evalError ctx (show err) (xobjInfo xobj))
                 Right xs ->
                   case annotate typeEnv globalEnv xs okSig of
@@ -727,7 +724,7 @@ annotateWithinContext ctx xobj = do
                       -- TODO: Replace this with a single call to evalError (which already checks the execution mode)
                       case contextExecMode ctx of
                         Check -> pure (evalError ctx (joinLines (machineReadableErrorStrings fppl err)) Nothing)
-                        Lsp -> pure (evalError ctx (lspErrorStrings err) Nothing)
+                        Analysis -> pure (evalError ctx (lspErrorStrings err) Nothing)
                         _ -> pure (evalError ctx (show err) (xobjInfo xobj))
                     Right ok -> pure (ctx, Right ok)
 
@@ -1017,6 +1014,113 @@ commandExpandCompiled ctx xobj = do
       case annotated of
         Left err -> pure $ evalError newCtx (show err) (xobjInfo xobj)
         Right (annXObj, _) -> pure (newCtx, Right annXObj)
+
+-- TODO:
+-- - Get everything, not just DEFs
+-- - Flatten entire environment in order to find all symbols
+-- - Rename function
+commandHover :: TernaryCommandCallback
+commandHover ctx filePathObj lineObj columnObj =
+  case (filePathObj, lineObj, columnObj) of
+    ( XObj (Str filePath) info _,
+      XObj (Num IntTy (Integral line)) _ _,
+      XObj (Num IntTy (Integral column)) _ _
+      ) ->
+        loadInternal ctx filePathObj filePath info Nothing DoesReload
+          >>= ( \(updatedCtx, response) ->
+                  case response of
+                    Left _ -> pure (ctx, dynamicNil)
+                    Right _ ->
+                      do
+                        textHover updatedCtx filePath line column
+                        pure (ctx, dynamicNil)
+              )
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'text-document/hover' arguments must be a string (filepath), an int (line) and another int (columnn)"
+            Nothing
+        )
+
+commandGoToDefinition :: TernaryCommandCallback
+commandGoToDefinition ctx filePathObj lineObj columnObj =
+  case (filePathObj, lineObj, columnObj) of
+    ( XObj (Str filePath) info _,
+      XObj (Num IntTy (Integral line)) _ _,
+      XObj (Num IntTy (Integral column)) _ _
+      ) ->
+        loadInternal ctx filePathObj filePath info Nothing DoesReload
+          >>= ( \(updatedCtx, response) ->
+                  case response of
+                    Left _ -> pure (ctx, dynamicNil)
+                    Right _ ->
+                      do
+                        definitionLocation updatedCtx filePath line column
+                        pure (ctx, dynamicNil)
+              )
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'text-document/definition' arguments must be a string (filepath), an int (line) and another int (columnn)"
+            Nothing
+        )
+
+commandTextDocumentDocumentSymbol :: UnaryCommandCallback
+commandTextDocumentDocumentSymbol ctx filePathObj =
+  case filePathObj of
+    (XObj (Str filePath) info _) ->
+      loadInternal ctx filePathObj filePath info Nothing DoesReload
+        >>= ( \(updatedCtx, response) ->
+                case response of
+                  Left _ -> pure (ctx, dynamicNil)
+                  Right _ ->
+                    do
+                      textDocumentDocumentSymbol updatedCtx filePath
+                      pure (ctx, dynamicNil)
+            )
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'text-document/document-symbol' argument must be a string (filepath)"
+            Nothing
+        )
+
+commandTextDocumentCompletion :: UnaryCommandCallback
+commandTextDocumentCompletion ctx filePathObj =
+  case filePathObj of
+    (XObj (Str filePath) info _) ->
+      loadInternal ctx filePathObj filePath info Nothing DoesReload
+        >>= ( \(updatedCtx, response) ->
+                case response of
+                  Left _ -> pure (ctx, dynamicNil)
+                  Right _ ->
+                    do
+                      textDocumentCompletion updatedCtx filePath
+                      pure (ctx, dynamicNil)
+            )
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'text-document/completion' argument must be a string (filepath)"
+            Nothing
+        )
+
+commandValidate :: UnaryCommandCallback
+commandValidate ctx filePathObj =
+  case filePathObj of
+    (XObj (Str filePath) info _) ->
+      loadInternal ctx filePathObj filePath info Nothing DoesReload >> pure (ctx, dynamicNil)
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'validate' argument must be a string (filepath)"
+            Nothing
+        )
 
 -- | Helper function for commandC
 printC :: XObj -> String

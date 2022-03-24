@@ -990,7 +990,7 @@ forceTy xobj = fromMaybe (error ("No type in " ++ show xobj)) (xobjTy xobj)
 
 -- | How should the compiler be run? Interactively or just build / build & run and then quit?
 data ExecutionMode
-  = Lsp
+  = Analysis
   | Repl
   | Build
   | BuildAndRun

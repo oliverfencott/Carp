@@ -386,14 +386,15 @@ dynamicAnalysisModule =
       Map.fromList (unaries ++ ternaries)
     unaries =
       let f = addUnaryCommand . spath
-       in [ --
-            f "text-document/document-symbol" commandTextDocumentDocumentSymbol "outputs JSON of the available symbols in a document" "(text-document/document-symbol \"my-file.carp\")",
+       in [ f "text-document/document-symbol" commandTextDocumentDocumentSymbol "outputs JSON of the available symbols in a document" "(text-document/document-symbol \"my-file.carp\")",
+            f "text-document/completion" commandTextDocumentCompletion "outputs JSON of the available symbols in a document" "(text-document/completion \"my-file.carp\")",
+            f "validate" commandValidate "looks for any errors in the document" "(validate \"my-file.carp\")",
             f "debug-all" commandDebugAllSymbols "prints all symbols in a file" "(debug-all \"my-file.carp\")"
           ]
+
     ternaries =
       let f = addTernaryCommand . spath
-       in [ --
-            f "text-document/hover" commandHover "outputs JSON for the symbol at specified position." "(text-document/hover \"my-file.carp\" 10 5)",
+       in [ f "text-document/hover" commandHover "outputs JSON for the symbol at specified position." "(text-document/hover \"my-file.carp\" 10 5)",
             f "text-document/definition" commandGoToDefinition "outputs JSON that points to the location of a symbol." "(text-document/definition \"my-file.carp\" 10 5)"
           ]
 

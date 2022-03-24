@@ -9,8 +9,8 @@ import Obj
 newtype DocumentSymbol = DocumentSymbol Binder
 
 documentSymbolToJson :: DocumentSymbol -> Json
-documentSymbolToJson (Lsp.DocumentSymbol (Binder _ (XObj _ Nothing _))) = JsonNull
-documentSymbolToJson (Lsp.DocumentSymbol (Binder meta xobj@(XObj obj (Just info) _))) =
+documentSymbolToJson (DocumentSymbol (Binder _ (XObj _ Nothing _))) = JsonNull
+documentSymbolToJson (DocumentSymbol (Binder meta xobj@(XObj obj (Just info) _))) =
   json
   where
     json =
@@ -32,53 +32,53 @@ documentSymbolToJson (Lsp.DocumentSymbol (Binder meta xobj@(XObj obj (Just info)
         [ ("uri", JsonString uri),
           ("range", makeRange info)
         ]
-    uri = infoFile info
+    uri = uriToString info
 
     kind = case obj of
-      Sym {} -> Variable
-      MultiSym {} -> Array
-      InterfaceSym {} -> Lsp.Interface
-      Num {} -> Number
-      Str {} -> String
-      Pattern {} -> String
-      Chr {} -> String
-      Bol {} -> Boolean
-      Lst {} -> Array
-      Arr {} -> Array
-      StaticArr {} -> Array
-      Dict {} -> Object
-      Closure {} -> Function
-      Defn {} -> Function
-      Def {} -> Variable
-      Fn {} -> Function
-      Do {} -> Key
-      Let {} -> Variable
-      LocalDef {} -> Variable
-      While {} -> Event
-      Break {} -> Event
-      If {} -> Event
-      Match {} -> Event
-      Mod {} -> Module
-      Deftype {} -> File -- TODO
-      DefSumtype {} -> Enum
-      With {} -> Event
-      External {} -> Variable
-      ExternalType {} -> Variable
-      MetaStub {} -> Object
-      Deftemplate {} -> Constant
-      Instantiate {} -> Constructor
-      Defalias {} -> Variable
-      SetBang {} -> Function
-      Macro {} -> Constructor
-      Dynamic {} -> Variable
-      DefDynamic {} -> Variable
-      Command {} -> Event
-      Primitive {} -> Variable
-      The {} -> TypeParameter
-      Ref {} -> Variable
-      Deref {} -> Variable
-      Obj.Interface {} -> Lsp.Interface
-      C {} -> Constant
+      Sym {} -> SymbolKindVariable
+      MultiSym {} -> SymbolKindArray
+      InterfaceSym {} -> SymbolKindInterface
+      Num {} -> SymbolKindNumber
+      Str {} -> SymbolKindString
+      Pattern {} -> SymbolKindString
+      Chr {} -> SymbolKindString
+      Bol {} -> SymbolKindBoolean
+      Lst {} -> SymbolKindArray
+      Arr {} -> SymbolKindArray
+      StaticArr {} -> SymbolKindArray
+      Dict {} -> SymbolKindObject
+      Closure {} -> SymbolKindFunction
+      Defn {} -> SymbolKindFunction
+      Def {} -> SymbolKindVariable
+      Fn {} -> SymbolKindFunction
+      Do {} -> SymbolKindKey
+      Let {} -> SymbolKindVariable
+      LocalDef {} -> SymbolKindVariable
+      While {} -> SymbolKindEvent
+      Break {} -> SymbolKindEvent
+      If {} -> SymbolKindEvent
+      Match {} -> SymbolKindEvent
+      Mod {} -> SymbolKindModule
+      Deftype {} -> SymbolKindFile -- TODO
+      DefSumtype {} -> SymbolKindEnum
+      With {} -> SymbolKindEvent
+      External {} -> SymbolKindVariable
+      ExternalType {} -> SymbolKindVariable
+      MetaStub {} -> SymbolKindObject
+      Deftemplate {} -> SymbolKindConstant
+      Instantiate {} -> SymbolKindConstructor
+      Defalias {} -> SymbolKindVariable
+      SetBang {} -> SymbolKindFunction
+      Macro {} -> SymbolKindConstructor
+      Dynamic {} -> SymbolKindVariable
+      DefDynamic {} -> SymbolKindVariable
+      Command {} -> SymbolKindEvent
+      Primitive {} -> SymbolKindVariable
+      The {} -> SymbolKindTypeParameter
+      Ref {} -> SymbolKindVariable
+      Deref {} -> SymbolKindVariable
+      Interface {} -> SymbolKindInterface
+      C {} -> SymbolKindConstant
 
 data Tag = Deprecated
 
@@ -86,60 +86,128 @@ instance Show Tag where
   show Deprecated = "1"
 
 data SymbolKind
-  = File
-  | Module
-  | Namespace
-  | Package
-  | Class
-  | Method
-  | Property
-  | Field
-  | Constructor
-  | Enum
-  | Interface
-  | Function
-  | Variable
-  | Constant
-  | String
-  | Number
-  | Boolean
-  | Array
-  | Object
-  | Key
-  | Null
-  | EnumMember
-  | Struct
-  | Event
-  | Operator
-  | TypeParameter
+  = SymbolKindFile
+  | SymbolKindModule
+  | SymbolKindNamespace
+  | SymbolKindPackage
+  | SymbolKindClass
+  | SymbolKindMethod
+  | SymbolKindProperty
+  | SymbolKindField
+  | SymbolKindConstructor
+  | SymbolKindEnum
+  | SymbolKindInterface
+  | SymbolKindFunction
+  | SymbolKindVariable
+  | SymbolKindConstant
+  | SymbolKindString
+  | SymbolKindNumber
+  | SymbolKindBoolean
+  | SymbolKindArray
+  | SymbolKindObject
+  | SymbolKindKey
+  | SymbolKindNull
+  | SymbolKindEnumMember
+  | SymbolKindStruct
+  | SymbolKindEvent
+  | SymbolKindOperator
+  | SymbolKindTypeParameter
+
+data CompletionItemKind
+  = CompletionItemKindClass
+  | CompletionItemKindColor
+  | CompletionItemKindConstant
+  | CompletionItemKindConstructor
+  | --
+    CompletionItemKindEnum
+  | CompletionItemKindEnumMember
+  | CompletionItemKindEvent
+  | --
+    CompletionItemKindField
+  | CompletionItemKindFile
+  | CompletionItemKindFolder
+  | CompletionItemKindFunction
+  | --
+    CompletionItemKindInterface
+  | --
+    CompletionItemKindKeyword
+  | --
+    CompletionItemKindMethod
+  | CompletionItemKindModule
+  | --
+    CompletionItemKindOperator
+  | --
+    CompletionItemKindProperty
+  | --
+    CompletionItemKindReference
+  | --
+    CompletionItemKindSnippet
+  | CompletionItemKindStruct
+  | --
+    CompletionItemKindText
+  | CompletionItemKindTypeParameter
+  | --
+    CompletionItemKindUnit
+  | --
+    CompletionItemKindValue
+  | CompletionItemKindVariable
+
+newtype CompletionItem = CompletionItem Binder
+
+instance Show CompletionItemKind where
+  show CompletionItemKindText = "1"
+  show CompletionItemKindMethod = "2"
+  show CompletionItemKindFunction = "3"
+  show CompletionItemKindConstructor = "4"
+  show CompletionItemKindField = "5"
+  show CompletionItemKindVariable = "6"
+  show CompletionItemKindClass = "7"
+  show CompletionItemKindInterface = "8"
+  show CompletionItemKindModule = "9"
+  show CompletionItemKindProperty = "10"
+  show CompletionItemKindUnit = "11"
+  show CompletionItemKindValue = "12"
+  show CompletionItemKindEnum = "13"
+  show CompletionItemKindKeyword = "14"
+  show CompletionItemKindSnippet = "15"
+  show CompletionItemKindColor = "16"
+  show CompletionItemKindFile = "17"
+  show CompletionItemKindReference = "18"
+  show CompletionItemKindFolder = "19"
+  show CompletionItemKindEnumMember = "20"
+  show CompletionItemKindConstant = "21"
+  show CompletionItemKindStruct = "22"
+  show CompletionItemKindEvent = "23"
+  show CompletionItemKindOperator = "24"
+  show CompletionItemKindTypeParameter = "25"
 
 instance Show SymbolKind where
-  show File = "1"
-  show Module = "2"
-  show Namespace = "3"
-  show Package = "4"
-  show Class = "5"
-  show Method = "6"
-  show Property = "7"
-  show Field = "8"
-  show Constructor = "9"
-  show Enum = "10"
-  show Lsp.Interface = "11"
-  show Function = "12"
-  show Variable = "13"
-  show Constant = "14"
-  show String = "15"
-  show Number = "16"
-  show Boolean = "17"
-  show Array = "18"
-  show Object = "19"
-  show Key = "20"
-  show Null = "21"
-  show EnumMember = "22"
-  show Struct = "23"
-  show Event = "24"
-  show Operator = "25"
-  show TypeParameter = "26"
+  show SymbolKindFile = "1"
+  show SymbolKindModule = "2"
+  show SymbolKindNamespace = "3"
+  show SymbolKindPackage = "4"
+  show SymbolKindClass = "5"
+  show SymbolKindMethod = "6"
+  show SymbolKindProperty = "7"
+  show SymbolKindField = "8"
+  show SymbolKindConstructor = "9"
+  show SymbolKindEnum = "10"
+  show SymbolKindInterface = "11"
+  show SymbolKindFunction = "12"
+  show SymbolKindVariable = "13"
+  show SymbolKindConstant = "14"
+  show SymbolKindString = "15"
+  show SymbolKindNumber = "16"
+  show SymbolKindBoolean = "17"
+  show SymbolKindArray = "18"
+  show SymbolKindObject = "19"
+  show SymbolKindKey = "20"
+  show SymbolKindNull = "21"
+  show SymbolKindEnumMember = "22"
+  show SymbolKindStruct = "23"
+  show SymbolKindEvent = "24"
+  show SymbolKindOperator = "25"
+  show SymbolKindTypeParameter = "26"
 
 data Hover
   = HoverXObj Env XObj
@@ -177,7 +245,7 @@ hoverToJson (HoverXObj env xobj) =
           ++ "*"
     symPath = getPath xobj
     binder = either (const Nothing) Just (searchValueBinder env symPath)
-    fallBackType = maybe "" show (binder >>= (xobjTy . binderXObj))
+    fallBackType = maybe "" show (binder >>= xobjTy . binderXObj)
     type_ = maybe fallBackType show (xobjTy xobj)
     meta = lookupMeta env symPath
     doc = case meta of
@@ -196,7 +264,7 @@ locationToJson (Location binder) =
     Nothing -> JsonNull
     Just info ->
       JsonMap
-        [ ("uri", JsonString ("file://" ++ infoFile info)),
+        [ ("uri", JsonString (uriToString info)),
           ("range", makeRange info)
         ]
 
@@ -217,6 +285,78 @@ makeRange info =
     end =
       JsonMap
         [ ("line", JsonNumber (show lineStart)),
-          ("character", JsonNumber (show columnStart)) -- TODO: Default to see if it actually works. Figure out how to
-          -- do this correctly
+          ("character", JsonNumber (show columnStart)) -- TODO: Default to see if it actually works. Figure out how to do this correctly
         ]
+
+completionItemToJson :: CompletionItem -> Json
+completionItemToJson (CompletionItem binder) =
+  JsonMap
+    [ ("label", JsonString label),
+      ("detail", JsonString detail),
+      ( "documentation",
+        JsonMap
+          [ ("kind", JsonString "markdown"),
+            ("value", JsonString documentation)
+          ]
+      ),
+      ("kind", JsonNumber (show kind))
+    ]
+  where
+    documentation = case Meta.get "doc" (binderMeta binder) of
+      Just (XObj (Str doc) _ _) -> show doc
+      Just _ -> ""
+      Nothing -> ""
+    label = getName (binderXObj binder)
+    detail = maybe "" show (xobjTy (binderXObj binder))
+    kind = getKind binder
+
+uriToString :: Info -> String
+uriToString info = "file://" ++ infoFile info
+
+getKind :: Binder -> CompletionItemKind
+getKind binder =
+  case xobjObj (binderXObj binder) of
+    C {} -> CompletionItemKindValue
+    Lst {} -> CompletionItemKindValue
+    Arr {} -> CompletionItemKindValue
+    StaticArr {} -> CompletionItemKindValue
+    Dict {} -> CompletionItemKindStruct
+    Num {} -> CompletionItemKindValue
+    Str {} -> CompletionItemKindValue
+    Pattern {} -> CompletionItemKindValue
+    Chr {} -> CompletionItemKindValue
+    Sym {} -> CompletionItemKindVariable
+    MultiSym {} -> CompletionItemKindVariable
+    InterfaceSym {} -> CompletionItemKindInterface
+    Bol {} -> CompletionItemKindValue
+    Defn {} -> CompletionItemKindFunction
+    Def -> CompletionItemKindVariable
+    Fn {} -> CompletionItemKindFunction
+    Closure {} -> CompletionItemKindFunction
+    If -> CompletionItemKindKeyword
+    Match {} -> CompletionItemKindKeyword
+    While -> CompletionItemKindKeyword
+    Do -> CompletionItemKindKeyword
+    Let -> CompletionItemKindKeyword
+    LocalDef -> CompletionItemKindKeyword
+    Mod {} -> CompletionItemKindModule
+    Deftype {} -> CompletionItemKindTypeParameter
+    DefSumtype {} -> CompletionItemKindEnum
+    Deftemplate {} -> CompletionItemKindFunction
+    Instantiate {} -> CompletionItemKindFunction
+    External {} -> CompletionItemKindValue
+    ExternalType {} -> CompletionItemKindValue
+    MetaStub -> CompletionItemKindField
+    Defalias _ -> CompletionItemKindVariable
+    SetBang -> CompletionItemKindValue
+    Macro -> CompletionItemKindFunction
+    Dynamic -> CompletionItemKindFunction
+    DefDynamic -> CompletionItemKindFunction
+    Command _ -> CompletionItemKindFunction
+    Primitive _ -> CompletionItemKindValue
+    The -> CompletionItemKindKeyword
+    Ref -> CompletionItemKindFunction
+    Deref -> CompletionItemKindFunction
+    Break -> CompletionItemKindKeyword
+    Interface _ _ -> CompletionItemKindInterface
+    With -> CompletionItemKindKeyword

@@ -9,14 +9,15 @@ module Analysis where
 import Data.Either
 import Data.Function ((&))
 import Data.List (find, sortBy)
+import Data.Maybe (isNothing)
 import Env (findAllSymbols, findAllXObjsInFile, lookupMeta, searchValueBinder)
 import Info
-import Json (printJson)
+import Json (Json (JsonList), printJson)
 import Lsp (documentSymbolToJson, hoverToJson)
 import qualified Lsp
 import qualified Meta
 import Obj
-  ( Binder (binderXObj),
+  ( Binder (binderMeta, binderXObj),
     Context (contextGlobalEnv),
     XObj (xobjInfo, xobjTy),
     getName,
@@ -26,27 +27,43 @@ import Obj
   )
 import Prelude hiding (abs)
 
--- TODO:
--- - Get everything, not just DEFs
-
 textDocumentDocumentSymbol :: Context -> String -> IO ()
 textDocumentDocumentSymbol ctx filePath =
-  do
-    putStrLn ("called 'textDocumentDocumentSymbol' with " ++ filePath)
-    globalEnvSymbols
-      & map Lsp.DocumentSymbol
-      & map documentSymbolToJson
-      & map printJson
-      & mapM_ putStrLn
+  contextGlobalEnv ctx
+    & findAllSymbols
+    & filter ((== filePath) . fileFromBinder)
+    & map Lsp.DocumentSymbol
+    & map documentSymbolToJson
+    & JsonList
+    & printJson
+    & putStrLn
+
+textDocumentCompletion :: Context -> String -> IO ()
+textDocumentCompletion ctx _filePath =
+  findAllSymbols (contextGlobalEnv ctx)
+    & filter (isNothing . Meta.get "hidden" . binderMeta)
+    & concatMap
+      ( \a ->
+          let res = [a]
+           in res
+      )
+    & map Lsp.CompletionItem
+    & map Lsp.completionItemToJson
+    & JsonList
+    & printJson
+    & putStrLn
+
+textHover :: Context -> String -> Int -> Int -> IO ()
+textHover ctx filePath line column =
+  case maybeXObj of
+    Nothing -> pure ()
+    Just xobj ->
+      putStrLn (printJson (hoverToJson (Lsp.HoverXObj env xobj)))
   where
-    globalEnvSymbols =
-      contextGlobalEnv ctx
-        & findAllSymbols
-        & filter
-          ( \binder ->
-              fileFromBinder binder
-                == filePath
-          )
+    env = contextGlobalEnv ctx
+    allSymbols = findAllXObjsInFile env filePath
+    onLine = xobjsOnLine line allSymbols
+    maybeXObj = findObjAtColumn column onLine
 
 fileFromBinder :: Binder -> String
 fileFromBinder binder =
@@ -111,23 +128,10 @@ debugAllSymbolsInFile ctx filePath =
           )
         & sortBy sort
 
-textHover :: Context -> String -> Int -> Int -> IO ()
-textHover ctx filePath line column =
-  case maybeXObj of
-    Nothing -> pure ()
-    Just xobj ->
-      putStrLn (printJson (hoverToJson (Lsp.HoverXObj env xobj)))
-  where
-    env = contextGlobalEnv ctx
-    allSymbols = findAllXObjsInFile env filePath
-    onLine = xobjsOnLine line allSymbols
-    maybeXObj = findObjAtColumn column onLine
-
 definitionLocation :: Context -> String -> Int -> Int -> IO ()
 definitionLocation ctx filePath line column =
   case maybeBinder of
-    Nothing ->
-      pure ()
+    Nothing -> pure ()
     Just binder ->
       putStrLn (printJson (Lsp.locationToJson (Lsp.Location binder)))
   where

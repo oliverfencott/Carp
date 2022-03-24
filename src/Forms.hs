@@ -197,7 +197,7 @@ formatModifier m = "\n  - " ++ show m
 -- | Format a malformed form error for printing.
 format :: ExecutionMode -> Malformed -> String
 format executionMode e = case executionMode of
-  Lsp -> "TODO: FORMAT ERRORS FOR LSP"
+  Analysis -> "TODO: FORMAT ERRORS FOR LSP"
   _ -> "[ERROR] " ++ show e
 
 --------------------------------------------------------------------------------
