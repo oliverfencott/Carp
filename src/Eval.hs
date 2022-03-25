@@ -22,6 +22,7 @@ import Forms
 import Infer
 import Info
 import Json (printJson)
+import Lsp (printEvalError, printParseError)
 import qualified Map
 import qualified Meta
 import Obj
@@ -528,7 +529,7 @@ executeStringAtLine line doCatch printResult ctx input fileName =
                 )
                 Nothing
          in do
-              _ <- liftIO $ treatErr ctx (replaceChars (Map.fromList [('\n', " ")]) (show parseError)) parseErrorXObj
+              _ <- liftIO $ printErr ctx parseError parseErrorXObj
               pure ctx
       Right xobjs -> do
         (res, ctx') <-
@@ -542,12 +543,13 @@ executeStringAtLine line doCatch printResult ctx input fileName =
         pure ctx'
     interactiveFolder (_, context) =
       executeCommand context
-    treatErr ctx' e xobj = do
+    formatParseError e = replaceChars (Map.fromList [('\n', " ")]) (show e)
+    printErr ctx' e xobj = do
       let fppl = projectFilePathPrintLength (contextProj ctx')
       case contextExecMode ctx' of
-        Check -> putStrLn (machineReadableInfoFromXObj fppl xobj ++ " " ++ e)
-        -- TODO: Emit an LSP error here
-        _ -> emitErrorWithLabel "PARSE ERROR" e
+        Check -> putStrLn (machineReadableInfoFromXObj fppl xobj ++ " " ++ formatParseError e)
+        Analysis -> putStrLn (printParseError e (Just xobj))
+        _ -> emitErrorWithLabel "PARSE ERROR" (formatParseError e)
       throw CancelEvaluationException
 
 -- | Used by functions that has a series of forms to evaluate and need to fold over them (producing a new Context in the end)
@@ -564,27 +566,29 @@ executeCommand ctx@(Context env _ _ _ _ _ _ _) xobj =
       error ("Global env module name is " ++ fromJust (envModuleName env) ++ " (should be Nothing).")
     -- The s-expression command is a special case that prefers global/static bindings over dynamic bindings
     -- when given a naked binding (no path) as an argument; (s-expr inc)
-    (newCtx, result) <- if xobjIsSexp xobj then evalStatic ResolveGlobal ctx xobj else evalDynamic ResolveGlobal ctx xobj
+    (newCtx, result) <-
+      if xobjIsSexp xobj
+        then evalStatic ResolveGlobal ctx xobj
+        else evalDynamic ResolveGlobal ctx xobj
     case result of
       Left e@EvalError {} -> do
         reportExecutionError newCtx e
         pure (xobj, newCtx)
+      Left (HasStaticCall _ _) -> callFromRepl newCtx xobj
       -- special case: calling something static at the repl
       Right (XObj (Lst (XObj (Lst (XObj (Defn _) _ _ : (XObj (Sym (SymPath [] "main") _) _ _) : _)) _ _ : _)) _ _) ->
         executeCommand newCtx (withBuildAndRun (XObj (Lst []) (Just dummyInfo) Nothing))
-      Left (HasStaticCall _ _) ->
-        callFromRepl newCtx xobj
       Right res -> pure (res, newCtx)
   where
     callFromRepl newCtx xobj' = do
       (nc, r) <- annotateWithinContext newCtx xobj'
       case r of
-        Right (ann, deps) -> do
-          ctxWithDeps <- liftIO $ foldM (define True) nc (map Qualified deps)
-          executeCommand ctxWithDeps (withBuildAndRun (buildMainFunction ann))
         Left err -> do
           reportExecutionError nc err
           pure (xobj', nc)
+        Right (ann, deps) -> do
+          ctxWithDeps <- liftIO $ foldM (define True) nc (map Qualified deps)
+          executeCommand ctxWithDeps (withBuildAndRun (buildMainFunction ann))
     withBuildAndRun xobj' =
       XObj
         ( Lst
@@ -598,7 +602,7 @@ executeCommand ctx@(Context env _ _ _ _ _ _ _) xobj =
                 (Lst [XObj (Sym (SymPath [] "run") Symbol) (Just dummyInfo) Nothing])
                 (Just dummyInfo)
                 Nothing,
-              (XObj (Lst []) (Just dummyInfo) (Just UnitTy))
+              XObj (Lst []) (Just dummyInfo) (Just UnitTy)
             ]
         )
         (Just dummyInfo)
@@ -610,10 +614,7 @@ reportExecutionError :: Context -> EvalError -> IO ()
 reportExecutionError ctx errorMessage =
   case contextExecMode ctx of
     Check -> print errorMessage
-    Analysis ->
-      case errorMessage of
-        HasStaticCall _ _ -> print errorMessage
-        EvalError msg _ _ _ -> putStrLn msg
+    Analysis -> putStrLn (printEvalError errorMessage)
     _ ->
       do
         emitErrorBare (show errorMessage)

@@ -20,6 +20,7 @@ import EvalError
 import Infer
 import Info
 import Interfaces
+import Lsp (printErrorDiagnostic, printWarningDiagnostic)
 import Managed
 import qualified Map
 import qualified Meta
@@ -130,16 +131,28 @@ primitiveImplements _ ctx x@(XObj (Sym interface@(SymPath _ _) _) _ _) (XObj (Sy
         -- N.B. The found binding will be fully qualified!
         addToInterface interfaceBinder implBinder
   where
+    execMode = contextExecMode ctx
     qpath = qualifyNull ctx path
     warn :: IO ()
-    warn = emitWarning (show (NonExistentInterfaceWarning x))
+    -- TODO: This is what needs to be fixed for LSP
+    warn =
+      printWarning
+        execMode
+        (Just x)
+        (show (NonExistentInterfaceWarning x))
     addToInterface :: Binder -> Binder -> IO (Context, Either EvalError XObj)
     addToInterface inter impl =
       let (Right newCtx, maybeErr) = registerInInterface ctx impl inter
        in maybe (updateMeta impl newCtx) (handleError newCtx impl) maybeErr
     handleError :: Context -> Binder -> InterfaceError -> IO (Context, Either EvalError XObj)
     handleError context impl e@(AlreadyImplemented _ oldImplPath _ _) =
-      emitWarning (show e) >> pure (removeInterfaceFromImplements oldImplPath x context) >>= updateMeta impl
+      -- TODO: This is what needs to be fixed for LSP
+      printWarning
+        execMode
+        Nothing
+        (show e)
+        >> pure (removeInterfaceFromImplements oldImplPath x context)
+        >>= updateMeta impl
     handleError context _ e =
       emitError (show e) >> pure (evalError context (show e) (xobjInfo x))
     updateMeta :: Binder -> Context -> IO (Context, Either EvalError XObj)
@@ -169,21 +182,22 @@ primitiveImplements _ ctx x _ =
 -- see Eval.hs annotateWithinContext
 define :: Bool -> Context -> Qualified -> IO Context
 define hidden ctx qualifiedXObj =
-  pure (if hidden then (Meta.hide freshBinder) else freshBinder)
+  pure (if hidden then Meta.hide freshBinder else freshBinder)
     >>= \newBinder ->
       if isTypeDef annXObj
         then defineInTypeEnv newBinder
         else defineInGlobalEnv newBinder
   where
+    execMode = contextExecMode ctx
     annXObj = unQualified qualifiedXObj
     freshBinder = toBinder annXObj
     qpath = getQualifiedPath qualifiedXObj
     defineInTypeEnv :: Binder -> IO Context
-    defineInTypeEnv = pure . fromRight ctx . (insertTypeBinder ctx qpath)
+    defineInTypeEnv = pure . fromRight ctx . insertTypeBinder ctx qpath
     defineInGlobalEnv :: Binder -> IO Context
     defineInGlobalEnv newBinder =
       when (projectEchoC (contextProj ctx) && canBeEmitted annXObj) (putStrLn (toC All (Binder emptyMeta annXObj)))
-        >> case (lookupBinderInGlobalEnv ctx qpath) of
+        >> case lookupBinderInGlobalEnv ctx qpath of
           Left _ -> pure (fromRight ctx (insertInGlobalEnv ctx qpath newBinder))
           Right oldBinder -> redefineExistingBinder oldBinder newBinder
     canBeEmitted :: XObj -> Bool
@@ -193,7 +207,7 @@ define hidden ctx qualifiedXObj =
       do
         unless (isInstantiation (binderXObj old)) (warnTypeChange old)
         -- TODO: Merge meta more elegantly.
-        updatedContext <- (implementInterfaces (Binder meta x))
+        updatedContext <- implementInterfaces (Binder meta x)
         pure (fromRight (error ("Failed to insert " ++ show qpath)) (insertInGlobalEnv updatedContext qpath (Binder meta x)))
     isInstantiation (XObj (Lst (XObj (Instantiate _) _ _ : _)) _ _) = True
     isInstantiation _ = False
@@ -204,7 +218,11 @@ define hidden ctx qualifiedXObj =
         previousType = forceTy (binderXObj binder)
         warn :: IO ()
         warn =
-          emitWarning (show (DefinitionTypeChangeWarning annXObj previousType))
+          -- TODO: This is what needs to be fixed for LSP
+          printWarning
+            execMode
+            (Just annXObj)
+            (show (DefinitionTypeChangeWarning annXObj previousType))
     implementInterfaces :: Binder -> IO Context
     implementInterfaces binder =
       pure
@@ -223,7 +241,14 @@ define hidden ctx qualifiedXObj =
     printError Check e =
       let fppl = projectFilePathPrintLength (contextProj ctx)
        in putStrLn (machineReadableInfoFromXObj fppl annXObj ++ " " ++ e)
+    printError Analysis e =
+      putStrLn (printErrorDiagnostic e (Just annXObj))
     printError _ e = putStrLnWithColor Red e
+
+printWarning :: ExecutionMode -> Maybe XObj -> String -> IO ()
+printWarning Analysis xobj warning =
+  putStrLn (printWarningDiagnostic warning xobj)
+printWarning _ _ warning = emitWarning warning
 
 primitiveRegisterType :: VariadicPrimitiveCallback
 primitiveRegisterType _ ctx [XObj (Sym (SymPath [] t) _) _ _] =
@@ -684,6 +709,7 @@ unwrapTypeErr _ (Right x) = Right x
 autoDerive :: Context -> Ty -> [Either ContextError Binder] -> IO (Context, Either EvalError XObj)
 autoDerive c ty interfaces =
   let (SymPath mods tyname) = (getStructPath ty)
+      execMode = contextExecMode c
       implBinder :: String -> Ty -> Binder
       implBinder name t = Binder emptyMeta (XObj (Sym (SymPath (mods ++ [tyname]) name) Symbol) (Just dummyInfo) (Just t))
       getSig :: String -> Ty
@@ -697,13 +723,19 @@ autoDerive c ty interfaces =
             sig = getSig name
          in (implBinder name sig, sig, interface)
       derives =
-        (sequence interfaces)
+        sequence interfaces
           >>= \binders -> pure (fmap registration binders)
    in case derives of
         Left _ -> pure (evalError c "Couldn't derive interfaces." Nothing)
         Right regs ->
           case foldl' (\(context, _) (path, sig, interface) -> first (fromRight (error "COULDNT DERIVE!")) (registerInInterfaceIfNeeded context path interface sig)) (c, Nothing) regs of
-            (ci, Just err@AlreadyImplemented {}) -> emitWarning (show err) >> pure (ci, dynamicNil :: Either EvalError XObj)
+            (ci, Just err@AlreadyImplemented {}) ->
+              -- TODO: This is what needs to be fixed for LSP
+              printWarning
+                execMode
+                Nothing
+                (show err)
+                >> pure (ci, dynamicNil :: Either EvalError XObj)
             (_, Just err) -> pure $ evalError c (show err) Nothing
             (ci, Nothing) -> pure (ci, dynamicNil :: Either EvalError XObj)
 
@@ -711,29 +743,29 @@ autoDerive c ty interfaces =
 primitiveUse :: UnaryPrimitiveCallback
 primitiveUse xobj ctx (XObj (Sym path _) _ _) =
   let modulePath = fromStrings (contextPath ctx)
-      contextualized = (consPath (contextPath ctx) path)
-      global = (contextGlobalEnv ctx)
+      contextualized = consPath (contextPath ctx) path
+      global = contextGlobalEnv ctx
       -- Look up the module to see if we can actually use it.
       -- The reference might be contextual, if so, append the current context path strings.
-      path' = case (searchValueBinder global path) of
+      path' = case searchValueBinder global path of
         Right _ -> path
         _ -> contextualized
    in pure
         ( case modulePath of
             (SymPath [] "") -> updateGlobalUsePaths global path'
             _ -> case searchValueBinder global modulePath of
-              Left err -> (evalError ctx (show err) (xobjInfo xobj))
+              Left err -> evalError ctx (show err) (xobjInfo xobj)
               Right binder ->
                 updateModuleUsePaths global modulePath binder path'
         )
   where
     updateGlobalUsePaths :: Env -> SymPath -> (Context, Either EvalError XObj)
     updateGlobalUsePaths e spath =
-      ((replaceGlobalEnv ctx (addUsePath e spath)), dynamicNil)
+      (replaceGlobalEnv ctx (addUsePath e spath), dynamicNil)
     updateModuleUsePaths :: Env -> SymPath -> Binder -> SymPath -> (Context, Either EvalError XObj)
     updateModuleUsePaths e p (Binder meta (XObj (Mod ev et) i t)) spath =
       either
-        (\err -> (evalError ctx err (xobjInfo xobj)))
+        (\err -> evalError ctx err (xobjInfo xobj))
         (\newCtx -> (newCtx, dynamicNil))
         ( (unwrapErr (insert e p (Binder meta (XObj (Mod (addUsePath ev spath) et) i t))))
             >>= pure . replaceGlobalEnv ctx
