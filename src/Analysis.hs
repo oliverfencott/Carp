@@ -25,13 +25,14 @@ import Obj
     pretty,
     unwrapStringXObj,
   )
+import Util (stripeFileProtocol)
 import Prelude hiding (abs)
 
 textDocumentDocumentSymbol :: Context -> String -> IO ()
-textDocumentDocumentSymbol ctx filePath =
+textDocumentDocumentSymbol ctx rawPath =
   contextGlobalEnv ctx
     & findAllSymbols
-    & filter ((== filePath) . fileFromBinder)
+    & filter ((== stripeFileProtocol rawPath) . fileFromBinder)
     & map Lsp.DocumentSymbol
     & map documentSymbolToJson
     & JsonList
@@ -54,12 +55,13 @@ textDocumentCompletion ctx _filePath =
     & putStrLn
 
 textHover :: Context -> String -> Int -> Int -> IO ()
-textHover ctx filePath line column =
+textHover ctx rawPath line column =
   case maybeXObj of
     Nothing -> pure ()
     Just xobj ->
       putStrLn (printJson (hoverToJson (Lsp.HoverXObj env xobj)))
   where
+    filePath = stripeFileProtocol rawPath
     env = contextGlobalEnv ctx
     allSymbols = findAllXObjsInFile env filePath
     onLine = xobjsOnLine line allSymbols
@@ -73,7 +75,7 @@ fileFromBinder binder =
     info = xobjInfo xobj
 
 debugAllSymbolsInFile :: Context -> String -> IO ()
-debugAllSymbolsInFile ctx filePath =
+debugAllSymbolsInFile ctx rawPath =
   mapM_
     ( \xobj ->
         let symPath = getPath xobj
@@ -102,6 +104,7 @@ debugAllSymbolsInFile ctx filePath =
     )
     xobjs
   where
+    filePath = stripeFileProtocol rawPath
     env = contextGlobalEnv ctx
     globals = findAllXObjsInFile env filePath
 
@@ -129,12 +132,13 @@ debugAllSymbolsInFile ctx filePath =
         & sortBy sort
 
 definitionLocation :: Context -> String -> Int -> Int -> IO ()
-definitionLocation ctx filePath line column =
+definitionLocation ctx rawPath line column =
   case maybeBinder of
     Nothing -> pure ()
     Just binder ->
       putStrLn (printJson (Lsp.locationToJson (Lsp.Location binder)))
   where
+    filePath = stripeFileProtocol rawPath
     env = contextGlobalEnv ctx
     allSymbols = findAllXObjsInFile env filePath
     onLine = xobjsOnLine line allSymbols

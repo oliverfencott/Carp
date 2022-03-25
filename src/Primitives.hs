@@ -242,12 +242,12 @@ define hidden ctx qualifiedXObj =
       let fppl = projectFilePathPrintLength (contextProj ctx)
        in putStrLn (machineReadableInfoFromXObj fppl annXObj ++ " " ++ e)
     printError Analysis e =
-      putStrLn (printErrorDiagnostic e (Just annXObj))
+      putStrLn (printErrorDiagnostic e (xobjInfo annXObj))
     printError _ e = putStrLnWithColor Red e
 
 printWarning :: ExecutionMode -> Maybe XObj -> String -> IO ()
 printWarning Analysis xobj warning =
-  putStrLn (printWarningDiagnostic warning xobj)
+  putStrLn (printWarningDiagnostic warning (xobj >>= xobjInfo))
 printWarning _ _ warning = emitWarning warning
 
 primitiveRegisterType :: VariadicPrimitiveCallback

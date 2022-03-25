@@ -248,7 +248,7 @@ makeRange info =
         ]
     end =
       JsonMap
-        [ ("line", JsonNumber (show lineStart)),
+        [ ("line", JsonNumber (show (lineStart - 1))),
           ("character", JsonNumber (show columnStart)) -- TODO: Default to see if it actually works. Figure out how to do this correctly
         ]
 
@@ -373,16 +373,19 @@ objToSymbolKind Interface {} = SymbolKindInterface
 objToSymbolKind C {} = SymbolKindConstant
 
 printEvalError :: EvalError -> String
-printEvalError (EvalError _msg _xobjs _filePathPrintLength _info) = "EvalError Fix this here"
-printEvalError (HasStaticCall _xObj _info) = "HasStaticCall Fix this here"
+printEvalError (EvalError msg _ _ info) = printErrorDiagnostic msg info
+printEvalError (HasStaticCall _xObj info) = printErrorDiagnostic "HasStaticCall  error" info
 
-printParseError :: ParseError -> Maybe XObj -> String
+printParseError :: ParseError -> Maybe Info -> String
 printParseError parseError = printErrorDiagnostic (show parseError)
 
-printErrorDiagnostic :: String -> Maybe XObj -> String
+printErrorDiagnostic :: String -> Maybe Info -> String
 printErrorDiagnostic = printDiagnostic Error
 
-printDiagnostic :: DiagnosticSeverity -> String -> Maybe XObj -> String
+printWarningDiagnostic :: String -> Maybe Info -> String
+printWarningDiagnostic = printDiagnostic Warning
+
+printDiagnostic :: DiagnosticSeverity -> String -> Maybe Info -> String
 printDiagnostic severity message xobj =
   printJson
     ( JsonMap
@@ -394,14 +397,11 @@ printDiagnostic severity message xobj =
     uri =
       maybe
         JsonNull
-        (maybe JsonNull (JsonString . uriToString) . xobjInfo)
+        (JsonString . uriToString)
         xobj
     diagnostics = JsonList [makeDiagnostic severity message xobj]
 
-printWarningDiagnostic :: String -> Maybe XObj -> String
-printWarningDiagnostic = printDiagnostic Warning
-
-makeDiagnostic :: DiagnosticSeverity -> String -> Maybe XObj -> Json
+makeDiagnostic :: DiagnosticSeverity -> String -> Maybe Info -> Json
 makeDiagnostic severity message xobj =
   JsonMap
     [ ("message", JsonString message),
@@ -410,4 +410,4 @@ makeDiagnostic severity message xobj =
       ("range", range)
     ]
   where
-    range = maybe JsonNull (maybe JsonNull makeRange . xobjInfo) xobj
+    range = maybe JsonNull makeRange xobj

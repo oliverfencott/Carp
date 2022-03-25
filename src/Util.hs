@@ -137,3 +137,11 @@ whenRight (Left err) _ = pure (Left err)
 whenRightReturn :: Applicative f => Either a b -> Either a c -> f (Either a c)
 whenRightReturn (Right _) cont = pure cont
 whenRightReturn (Left err) _ = pure (Left err)
+
+stripeFileProtocol :: String -> String
+stripeFileProtocol rawPath =
+  if protocol `isPrefixOf` rawPath
+    then drop (length protocol) rawPath
+    else rawPath
+  where
+    protocol = "file://"

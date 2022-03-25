@@ -548,7 +548,7 @@ executeStringAtLine line doCatch printResult ctx input fileName =
       let fppl = projectFilePathPrintLength (contextProj ctx')
       case contextExecMode ctx' of
         Check -> putStrLn (machineReadableInfoFromXObj fppl xobj ++ " " ++ formatParseError e)
-        Analysis -> putStrLn (printParseError e (Just xobj))
+        Analysis -> putStrLn (printParseError e (xobjInfo xobj))
         _ -> emitErrorWithLabel "PARSE ERROR" (formatParseError e)
       throw CancelEvaluationException
 
@@ -1023,7 +1023,7 @@ commandExpandCompiled ctx xobj = do
 commandHover :: TernaryCommandCallback
 commandHover ctx filePathObj lineObj columnObj =
   case (filePathObj, lineObj, columnObj) of
-    ( XObj (Str filePath) info _,
+    ( XObj (Str rawPath) info _,
       XObj (Num IntTy (Integral line)) _ _,
       XObj (Num IntTy (Integral column)) _ _
       ) ->
@@ -1036,6 +1036,8 @@ commandHover ctx filePathObj lineObj columnObj =
                         textHover updatedCtx filePath line column
                         pure (ctx, dynamicNil)
               )
+        where
+          filePath = stripeFileProtocol rawPath
     _ ->
       pure
         ( evalError
@@ -1047,7 +1049,7 @@ commandHover ctx filePathObj lineObj columnObj =
 commandGoToDefinition :: TernaryCommandCallback
 commandGoToDefinition ctx filePathObj lineObj columnObj =
   case (filePathObj, lineObj, columnObj) of
-    ( XObj (Str filePath) info _,
+    ( XObj (Str rawPath) info _,
       XObj (Num IntTy (Integral line)) _ _,
       XObj (Num IntTy (Integral column)) _ _
       ) ->
@@ -1060,6 +1062,8 @@ commandGoToDefinition ctx filePathObj lineObj columnObj =
                         definitionLocation updatedCtx filePath line column
                         pure (ctx, dynamicNil)
               )
+        where
+          filePath = stripeFileProtocol rawPath
     _ ->
       pure
         ( evalError
@@ -1071,7 +1075,7 @@ commandGoToDefinition ctx filePathObj lineObj columnObj =
 commandTextDocumentDocumentSymbol :: UnaryCommandCallback
 commandTextDocumentDocumentSymbol ctx filePathObj =
   case filePathObj of
-    (XObj (Str filePath) info _) ->
+    (XObj (Str rawPath) info _) ->
       loadInternal ctx filePathObj filePath info Nothing DoesReload
         >>= ( \(updatedCtx, response) ->
                 case response of
@@ -1081,6 +1085,8 @@ commandTextDocumentDocumentSymbol ctx filePathObj =
                       textDocumentDocumentSymbol updatedCtx filePath
                       pure (ctx, dynamicNil)
             )
+      where
+        filePath = stripeFileProtocol rawPath
     _ ->
       pure
         ( evalError
@@ -1092,7 +1098,7 @@ commandTextDocumentDocumentSymbol ctx filePathObj =
 commandTextDocumentCompletion :: UnaryCommandCallback
 commandTextDocumentCompletion ctx filePathObj =
   case filePathObj of
-    (XObj (Str filePath) info _) ->
+    (XObj (Str rawPath) info _) ->
       loadInternal ctx filePathObj filePath info Nothing DoesReload
         >>= ( \(updatedCtx, response) ->
                 case response of
@@ -1102,6 +1108,8 @@ commandTextDocumentCompletion ctx filePathObj =
                       textDocumentCompletion updatedCtx filePath
                       pure (ctx, dynamicNil)
             )
+      where
+        filePath = stripeFileProtocol rawPath
     _ ->
       pure
         ( evalError
@@ -1113,8 +1121,10 @@ commandTextDocumentCompletion ctx filePathObj =
 commandValidate :: UnaryCommandCallback
 commandValidate ctx filePathObj =
   case filePathObj of
-    (XObj (Str filePath) info _) ->
+    (XObj (Str rawPath) info _) ->
       loadInternal ctx filePathObj filePath info Nothing DoesReload >> pure (ctx, dynamicNil)
+      where
+        filePath = stripeFileProtocol rawPath
     _ ->
       pure
         ( evalError
