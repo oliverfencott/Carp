@@ -10,7 +10,7 @@ import Data.Either
 import Data.Function ((&))
 import Data.List (find, sortBy)
 import Data.Maybe (isNothing)
-import Env (findAllSymbols, findAllXObjsInFile, lookupMeta, searchValueBinder)
+import Env (findAllNestedBinders, findAllXObjsInFile, lookupMeta, searchValueBinder)
 import Info
 import Json (Json (JsonList), printJson)
 import Lsp (documentSymbolToJson, hoverToJson)
@@ -25,14 +25,14 @@ import Obj
     pretty,
     unwrapStringXObj,
   )
-import Util (stripeFileProtocol)
+import Util (stripFileProtocol)
 import Prelude hiding (abs)
 
 textDocumentDocumentSymbol :: Context -> String -> IO ()
 textDocumentDocumentSymbol ctx rawPath =
   contextGlobalEnv ctx
-    & findAllSymbols
-    & filter ((== stripeFileProtocol rawPath) . fileFromBinder)
+    & findAllNestedBinders
+    & filter ((== stripFileProtocol rawPath) . fileFromBinder)
     & map Lsp.DocumentSymbol
     & map documentSymbolToJson
     & JsonList
@@ -41,11 +41,11 @@ textDocumentDocumentSymbol ctx rawPath =
 
 textDocumentCompletion :: Context -> String -> IO ()
 textDocumentCompletion ctx _filePath =
-  findAllSymbols (contextGlobalEnv ctx)
+  findAllNestedBinders (contextGlobalEnv ctx)
     & filter (isNothing . Meta.get "hidden" . binderMeta)
     & concatMap
-      ( \a ->
-          let res = [a]
+      ( \binder ->
+          let res = [binder]
            in res
       )
     & map Lsp.CompletionItem
@@ -61,7 +61,7 @@ textHover ctx rawPath line column =
     Just xobj ->
       putStrLn (printJson (hoverToJson (Lsp.HoverXObj env xobj)))
   where
-    filePath = stripeFileProtocol rawPath
+    filePath = stripFileProtocol rawPath
     env = contextGlobalEnv ctx
     allSymbols = findAllXObjsInFile env filePath
     onLine = xobjsOnLine line allSymbols
@@ -77,16 +77,17 @@ fileFromBinder binder =
 debugAllSymbolsInFile :: Context -> String -> IO ()
 debugAllSymbolsInFile ctx rawPath =
   mapM_
-    ( \xobj ->
-        let symPath = getPath xobj
+    ( \binder ->
+        let xobj = binderXObj binder
+            symPath = getPath xobj
             meta = lookupMeta env symPath
-            doc3 = case meta of
+            docLookup = case meta of
               Left _ -> Left ""
               Right m ->
                 case Meta.get "doc" m of
                   Nothing -> Right ""
                   Just x -> unwrapStringXObj x
-            doc = either id id doc3
+            doc = either id id docLookup
          in do
               putStrLn ("Name: " ++ getName xobj)
               putStrLn ("Doc: " ++ doc)
@@ -102,30 +103,32 @@ debugAllSymbolsInFile ctx rawPath =
               print (pretty xobj)
               putStrLn "\n"
     )
-    xobjs
+    binders
   where
-    filePath = stripeFileProtocol rawPath
+    filePath = stripFileProtocol rawPath
     env = contextGlobalEnv ctx
-    globals = findAllXObjsInFile env filePath
+    valueBinders = findAllNestedBinders env
+    allBinders = valueBinders
 
     -- NOTE: This isn't needed. Just for debugging
+    sort :: Binder -> Binder -> Ordering
     sort a b
       | lineA < lineB = LT
       | lineA > lineB = GT
       | otherwise = if columnA < columnB then LT else if columnA > columnB then GT else EQ
       where
-        aInfo = xobjInfo a
-        bInfo = xobjInfo b
+        aInfo = xobjInfo (binderXObj a)
+        bInfo = xobjInfo (binderXObj b)
         lineA = maybe 0 infoLine aInfo
         lineB = maybe 0 infoLine bInfo
         columnA = maybe 0 infoColumn aInfo
         columnB = maybe 0 infoColumn bInfo
 
-    xobjs =
-      globals
+    binders =
+      allBinders
         & filter
-          ( \xobj ->
-              case xobjInfo xobj of
+          ( \binder ->
+              case xobjInfo (binderXObj binder) of
                 Nothing -> False
                 Just info -> infoFile info == filePath
           )
@@ -138,7 +141,7 @@ definitionLocation ctx rawPath line column =
     Just binder ->
       putStrLn (printJson (Lsp.locationToJson (Lsp.Location binder)))
   where
-    filePath = stripeFileProtocol rawPath
+    filePath = stripFileProtocol rawPath
     env = contextGlobalEnv ctx
     allSymbols = findAllXObjsInFile env filePath
     onLine = xobjsOnLine line allSymbols

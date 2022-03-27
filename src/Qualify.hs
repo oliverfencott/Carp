@@ -23,7 +23,7 @@ import Data.Bifunctor
 import Data.Either (fromRight)
 import qualified Env as E
 import Info
-import Json (Json (JsonList, JsonMap, JsonNull, JsonNumber, JsonString))
+import Json (Json (JsonList, JsonMap, JsonNull, JsonNumber, JsonString), printJson)
 import qualified Map
 import Obj
 import qualified Set
@@ -65,9 +65,9 @@ instance Show QualificationError where
   show (FailedToFindSymbol xobj) =
     "Couldn't find the xobj: " ++ pretty xobj
 
-toLspMessage :: QualificationError -> Json
+toLspMessage :: QualificationError -> String
 toLspMessage err =
-  JsonMap [uri, diagnostics]
+  printJson (JsonMap [uri, diagnostics])
   where
     codeLabel = case err of
       FailedToQualifyDeclarationName _ -> "FailedToQualifyDeclarationName"

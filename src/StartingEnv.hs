@@ -266,8 +266,7 @@ dynamicModule =
             f "project" commandProject "prints the current project state." "(project)",
             f "host-arch" commandHostArch "prints the host architecture (as returned by the Haskell function `System.Info.arch`)." "(host-arch)",
             f "host-os" commandHostOS "prints the host operating system (as returned by the Haskell function `System.Info.os`)." "(host-os)",
-            f "host-bit-width" commandHostBitWidth "gets the bit width of the host platform." "(host-bit-width) ; => your host machine’s bit width, e.g. 32 or 64",
-            f "build-info" commandGenerateBuildInfo "prints a json blob to stdout with build information that may be parsed and used with tooling." "(build-info)"
+            f "host-bit-width" commandHostBitWidth "gets the bit width of the host platform." "(host-bit-width) ; => your host machine’s bit width, e.g. 32 or 64"
           ]
     unaries =
       let f = addUnaryCommand . spath

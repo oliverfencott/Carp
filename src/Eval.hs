@@ -21,7 +21,6 @@ import Expand
 import Forms
 import Infer
 import Info
-import Json (printJson)
 import Lsp (printEvalError, printParseError)
 import qualified Map
 import qualified Meta
@@ -612,9 +611,14 @@ executeCommand ctx@(Context env _ _ _ _ _ _ _) xobj =
 
 reportExecutionError :: Context -> EvalError -> IO ()
 reportExecutionError ctx errorMessage =
-  case contextExecMode ctx of
-    Check -> print errorMessage
-    Analysis -> putStrLn (printEvalError errorMessage)
+  case (contextExecMode ctx, errorMessage) of
+    (Check, _) -> print errorMessage
+    -- NOTE: This is kind of rubbish but assume that the string is already
+    -- an lsp error ready for printing
+    (Analysis, EvalError msg _ _ _info) ->
+      putStrLn msg
+    (Analysis, HasStaticCall _xobj _info) ->
+      putStrLn (printEvalError errorMessage)
     _ ->
       do
         emitErrorBare (show errorMessage)
@@ -717,7 +721,7 @@ annotateWithinContext ctx xobj = do
                 Left err ->
                   case contextExecMode ctx of
                     Check -> pure (evalError ctx (show err) (xobjInfo xobj))
-                    Analysis -> pure (evalError ctx (printJson (toLspMessage err)) (xobjInfo xobj))
+                    Analysis -> pure (evalError ctx (toLspMessage err) (xobjInfo xobj))
                     _ -> pure (evalError ctx (show err) (xobjInfo xobj))
                 Right xs ->
                   case annotate typeEnv globalEnv xs okSig of
@@ -1037,7 +1041,7 @@ commandHover ctx filePathObj lineObj columnObj =
                         pure (ctx, dynamicNil)
               )
         where
-          filePath = stripeFileProtocol rawPath
+          filePath = stripFileProtocol rawPath
     _ ->
       pure
         ( evalError
@@ -1063,7 +1067,7 @@ commandGoToDefinition ctx filePathObj lineObj columnObj =
                         pure (ctx, dynamicNil)
               )
         where
-          filePath = stripeFileProtocol rawPath
+          filePath = stripFileProtocol rawPath
     _ ->
       pure
         ( evalError
@@ -1086,7 +1090,7 @@ commandTextDocumentDocumentSymbol ctx filePathObj =
                       pure (ctx, dynamicNil)
             )
       where
-        filePath = stripeFileProtocol rawPath
+        filePath = stripFileProtocol rawPath
     _ ->
       pure
         ( evalError
@@ -1109,7 +1113,7 @@ commandTextDocumentCompletion ctx filePathObj =
                       pure (ctx, dynamicNil)
             )
       where
-        filePath = stripeFileProtocol rawPath
+        filePath = stripFileProtocol rawPath
     _ ->
       pure
         ( evalError
@@ -1124,7 +1128,7 @@ commandValidate ctx filePathObj =
     (XObj (Str rawPath) info _) ->
       loadInternal ctx filePathObj filePath info Nothing DoesReload >> pure (ctx, dynamicNil)
       where
-        filePath = stripeFileProtocol rawPath
+        filePath = stripFileProtocol rawPath
     _ ->
       pure
         ( evalError

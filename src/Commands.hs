@@ -1,7 +1,6 @@
 module Commands where
 
 import Analysis (debugAllSymbolsInFile)
-import BuildInfo
 import ColorText
 import Context
 import Control.Exception
@@ -805,13 +804,6 @@ commandSaveDocsEx ctx modulePaths filePaths = do
     binderFilename :: Binder -> String
     binderFilename = takeFileName . fromMaybe "" . fmap infoFile . xobjInfo . binderXObj
 
--- | Command for outputting a JSON object for consumption by tooling, LSPs, etc.
-commandGenerateBuildInfo :: NullaryCommandCallback
-commandGenerateBuildInfo ctx =
-  do
-    putStrLn (fromEnv (contextGlobalEnv ctx))
-    pure (ctx, dynamicNil)
-
 -- | Command for emitting literal C code from Carp.
 -- The string passed to this function will be emitted as is.
 -- This is necessary in some C interop contexts, e.g. calling macros that only accept string literals:
@@ -973,7 +965,7 @@ commandDebugAllSymbols ctx filePathObj =
         debugAllSymbolsInFile ctx filePath
         pure (ctx, dynamicNil)
       where
-        filePath = stripeFileProtocol rawPath
+        filePath = stripFileProtocol rawPath
     _ ->
       pure
         ( evalError

@@ -6,6 +6,7 @@ import Json (Json (JsonList, JsonMap, JsonNull, JsonNumber, JsonString), printJs
 import qualified Meta
 import Obj
 import Text.Parsec (ParseError)
+import Types
 
 newtype DocumentSymbol = DocumentSymbol Binder
 
@@ -179,7 +180,7 @@ documentSymbolToJson (DocumentSymbol (Binder meta xobj@(XObj obj (Just info) _))
           ("range", makeRange info)
         ]
     uri = uriToString info
-    kind = objToSymbolKind obj
+    kind = maybe (objToSymbolKind obj) tyToSymbolKind (xobjTy xobj)
 
 hoverToJson :: Hover -> Json
 hoverToJson (HoverXObj env xobj) =
@@ -192,26 +193,20 @@ hoverToJson (HoverXObj env xobj) =
               [ ("kind", JsonString "markdown"),
                 ( "value",
                   JsonString
-                    ( "\n__" ++ name ++ "__ `" ++ type_ ++ "`\n"
+                    ( --
+                      -- "__"
+                      --   ++ name
+                      --   ++ "__ `"
+                      "```carp\n"
+                        ++ type_
+                        ++ "\n```"
                         ++ "\n***\n"
                         ++ either id id doc
-                        ++ file
-                        ++ "\n***\n"
                     )
                 )
               ]
           )
         ]
-    file = case xobjInfo xobj of
-      Nothing -> ""
-      Just i ->
-        "\n***\n*"
-          ++ infoFile i
-          ++ ":"
-          ++ show (infoLine i)
-          ++ ":"
-          ++ show (infoColumn i)
-          ++ "*"
     symPath = getPath xobj
     binder = either (const Nothing) Just (searchValueBinder env symPath)
     fallBackType = maybe "" show (binder >>= xobjTy . binderXObj)
@@ -223,7 +218,7 @@ hoverToJson (HoverXObj env xobj) =
         case Meta.get "doc" m of
           Nothing -> Right ""
           Just x -> unwrapStringXObj x
-    name = getName xobj
+    _name = getName xobj
 
 locationToJson :: Location -> Json
 locationToJson (Location binder) =
@@ -251,6 +246,10 @@ makeRange info =
         [ ("line", JsonNumber (show (lineStart - 1))),
           ("character", JsonNumber (show columnStart)) -- TODO: Default to see if it actually works. Figure out how to do this correctly
         ]
+
+rangeFromXobj :: XObj -> Json
+rangeFromXobj xobj =
+  maybe JsonNull makeRange (xobjInfo xobj)
 
 completionItemToJson :: CompletionItem -> Json
 completionItemToJson (CompletionItem binder) =
@@ -372,9 +371,36 @@ objToSymbolKind Deref {} = SymbolKindVariable
 objToSymbolKind Interface {} = SymbolKindInterface
 objToSymbolKind C {} = SymbolKindConstant
 
+tyToSymbolKind :: Ty -> SymbolKind
+tyToSymbolKind IntTy {} = SymbolKindNumber
+tyToSymbolKind LongTy {} = SymbolKindNumber
+tyToSymbolKind ByteTy {} = SymbolKindVariable
+tyToSymbolKind BoolTy {} = SymbolKindBoolean
+tyToSymbolKind FloatTy {} = SymbolKindNumber
+tyToSymbolKind DoubleTy {} = SymbolKindNumber
+tyToSymbolKind StringTy {} = SymbolKindString
+tyToSymbolKind PatternTy {} = SymbolKindString -- TODO
+tyToSymbolKind CharTy {} = SymbolKindConstant
+tyToSymbolKind CCharTy {} = SymbolKindConstant
+tyToSymbolKind FuncTy {} = SymbolKindFunction
+tyToSymbolKind VarTy {} = SymbolKindVariable
+tyToSymbolKind UnitTy {} = SymbolKindNull
+tyToSymbolKind ModuleTy {} = SymbolKindModule
+tyToSymbolKind PointerTy {} = SymbolKindConstant -- TODO
+tyToSymbolKind RefTy {} = SymbolKindConstant
+tyToSymbolKind StaticLifetimeTy {} = SymbolKindConstant
+tyToSymbolKind StructTy {} = SymbolKindStruct
+tyToSymbolKind ConcreteNameTy {} = SymbolKindConstant -- TODO
+tyToSymbolKind TypeTy {} = SymbolKindInterface
+tyToSymbolKind MacroTy {} = SymbolKindInterface
+tyToSymbolKind DynamicTy {} = SymbolKindInterface
+tyToSymbolKind InterfaceTy {} = SymbolKindInterface
+tyToSymbolKind CTy {} = SymbolKindInterface
+tyToSymbolKind Universe {} = SymbolKindInterface
+
 printEvalError :: EvalError -> String
 printEvalError (EvalError msg _ _ info) = printErrorDiagnostic msg info
-printEvalError (HasStaticCall _xObj info) = printErrorDiagnostic "HasStaticCall  error" info
+printEvalError (HasStaticCall _xObj info) = printErrorDiagnostic "HasStaticCall error" info
 
 printParseError :: ParseError -> Maybe Info -> String
 printParseError parseError = printErrorDiagnostic (show parseError)

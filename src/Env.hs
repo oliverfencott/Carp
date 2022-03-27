@@ -48,7 +48,7 @@ module Env
     findChildren,
     findImplementations,
     findAllGlobalVariables,
-    findAllSymbols,
+    findAllNestedBinders,
     findAllXObjsInFile,
     findModules,
     allImportedEnvs,
@@ -678,12 +678,13 @@ findAllGlobalVariables e =
     finder acc def@(Binder _ (XObj (Lst (XObj Def _ _ : _)) _ _)) = def : acc
     finder acc _ = acc
 
-findAllSymbols :: Env -> [Binder]
-findAllSymbols e =
+findAllNestedBinders :: Env -> [Binder]
+findAllNestedBinders e =
   foldl' finder [] (Map.elems (binders e))
   where
     finder :: [Binder] -> Binder -> [Binder]
-    finder acc binder@(Binder _ (XObj (Mod ev _) _ _)) = acc ++ [binder] ++ findAllSymbols (inj ev)
+    finder acc binder@(Binder _ (XObj (Mod ev _) _ _)) =
+      acc ++ [binder] ++ findAllNestedBinders (inj ev)
     finder acc def = def : acc
 
 findAllXObjsInFile :: Env -> String -> [XObj]

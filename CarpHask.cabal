@@ -20,7 +20,6 @@ library
                        ArrayTemplates,
                        AssignTypes,
                        BoxTemplates,
-                       BuildInfo,
                        ColorText,
                        Commands,
                        Concretize,
