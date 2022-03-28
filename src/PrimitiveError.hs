@@ -49,7 +49,7 @@ instance Show PrimitiveError where
       ++ "  (register-type Name c-name [field0 Type, ...]"
   show (SymbolNotFoundError path) =
     "I can’t find the symbol `" ++ show path ++ "`"
-  show (BadDeftypeMembers) =
+  show BadDeftypeMembers =
     "All fields must have a name and a type."
       ++ "Example:\n"
       ++ "```(deftype Name [field1 Type1, field2 Type2, field3 Type3])```\n"
@@ -58,20 +58,20 @@ instance Show PrimitiveError where
       ++ concatMap pretty xobjs
       ++ "`"
   show (InvalidTypeName xobj) =
-    ("Invalid name for type definition: " ++ pretty xobj)
+    "Invalid name for type definition: " ++ pretty xobj
   show (InvalidTypeVariables xobj) =
-    ("Invalid type variables for type definition: " ++ pretty xobj)
+    "Invalid type variables for type definition: " ++ pretty xobj
   show (MetaSetFailed xobj e) =
     "`meta-set!` failed on `" ++ pretty xobj
       ++ "` "
       ++ show e
   show (StructNotFound xobj) =
-    "Couldn't find a type named '" ++ (show (getPath xobj))
+    "Couldn't find a type named '" ++ show (getPath xobj)
       ++ "' in the type environment."
   show (NonTypeInTypeEnv path xobj) =
     "Can't get members for: " ++ show path
       ++ " found a non-type in the type environment: "
-      ++ (pretty xobj)
+      ++ pretty xobj
   show (PrimitiveError.InvalidSumtypeCase xobj) =
     "Can't get members for an invalid sumtype case: "
       ++ pretty xobj

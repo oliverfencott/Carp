@@ -9,29 +9,32 @@ module Analysis where
 import Data.Either
 import Data.Function ((&))
 import Data.List (find, sortBy)
-import Data.Maybe (isNothing)
 import Env (findAllNestedBinders, findAllXObjsInFile, lookupMeta, searchValueBinder)
 import Info
 import Json (Json (JsonList), printJson)
 import Lsp (documentSymbolToJson, hoverToJson)
 import qualified Lsp
+import Map (assocs)
 import qualified Meta
 import Obj
   ( Binder (binderMeta, binderXObj),
     Context (contextGlobalEnv),
+    MetaData (getMeta),
     XObj (xobjInfo, xobjTy),
     getName,
     getPath,
+    metaIsTrue,
     pretty,
     unwrapStringXObj,
   )
-import Util (stripFileProtocol)
+import Util (joinLines, stripFileProtocol)
 import Prelude hiding (abs)
 
 textDocumentDocumentSymbol :: Context -> String -> IO ()
 textDocumentDocumentSymbol ctx rawPath =
   contextGlobalEnv ctx
     & findAllNestedBinders
+    & filter binderNotHidden
     & filter ((== stripFileProtocol rawPath) . fileFromBinder)
     & map Lsp.DocumentSymbol
     & map documentSymbolToJson
@@ -42,7 +45,7 @@ textDocumentDocumentSymbol ctx rawPath =
 textDocumentCompletion :: Context -> String -> IO ()
 textDocumentCompletion ctx _filePath =
   findAllNestedBinders (contextGlobalEnv ctx)
-    & filter (isNothing . Meta.get "hidden" . binderMeta)
+    & filter binderNotHidden
     & concatMap
       ( \binder ->
           let res = [binder]
@@ -53,6 +56,10 @@ textDocumentCompletion ctx _filePath =
     & JsonList
     & printJson
     & putStrLn
+
+binderNotHidden :: Binder -> Bool
+binderNotHidden binder =
+  not (metaIsTrue (binderMeta binder) "hidden")
 
 textHover :: Context -> String -> Int -> Int -> IO ()
 textHover ctx rawPath line column =
@@ -68,42 +75,52 @@ textHover ctx rawPath line column =
     maybeXObj = findObjAtColumn column onLine
 
 fileFromBinder :: Binder -> String
-fileFromBinder binder =
-  maybe "" infoFile info
-  where
-    xobj = binderXObj binder
-    info = xobjInfo xobj
+fileFromBinder binder = maybe "" infoFile (xobjInfo (binderXObj binder))
 
 debugAllSymbolsInFile :: Context -> String -> IO ()
 debugAllSymbolsInFile ctx rawPath =
-  mapM_
-    ( \binder ->
-        let xobj = binderXObj binder
-            symPath = getPath xobj
-            meta = lookupMeta env symPath
-            docLookup = case meta of
-              Left _ -> Left ""
-              Right m ->
-                case Meta.get "doc" m of
-                  Nothing -> Right ""
-                  Just x -> unwrapStringXObj x
-            doc = either id id docLookup
-         in do
-              putStrLn ("Name: " ++ getName xobj)
-              putStrLn ("Doc: " ++ doc)
-              putStrLn
-                ( maybe
-                    ""
-                    ( \info ->
-                        "line: " ++ show (infoLine info) ++ ", column: " ++ show (infoColumn info)
-                    )
-                    (xobjInfo xobj)
-                )
-              putStrLn (maybe "" (\ty -> "Type: " ++ show ty) (xobjTy xobj))
-              print (pretty xobj)
-              putStrLn "\n"
-    )
-    binders
+  do
+    putStrLn rawPath
+    putStrLn filePath
+    mapM_
+      ( \binder ->
+          let xobj = binderXObj binder
+              symPath = getPath xobj
+              meta = lookupMeta env symPath
+              docLookup = case meta of
+                Left _ -> Left ""
+                Right m ->
+                  case Meta.get "doc" m of
+                    Nothing -> Right ""
+                    Just x -> unwrapStringXObj x
+              doc = either id id docLookup
+              allMeta =
+                either
+                  (const [])
+                  ( joinLines
+                      . map
+                        (\(k, v) -> k ++ ": " ++ pretty v)
+                      . assocs
+                      . getMeta
+                  )
+                  meta
+           in do
+                putStrLn ("Name: " ++ getName xobj)
+                putStrLn ("Doc: " ++ doc)
+                putStrLn ("All meta: " ++ allMeta)
+                putStrLn
+                  ( maybe
+                      ""
+                      ( \info ->
+                          "line: " ++ show (infoLine info) ++ ", column: " ++ show (infoColumn info)
+                      )
+                      (xobjInfo xobj)
+                  )
+                putStrLn (maybe "" (\ty -> "Type: " ++ show ty) (xobjTy xobj))
+                print (pretty xobj)
+                putStrLn "\n"
+      )
+      binders
   where
     filePath = stripFileProtocol rawPath
     env = contextGlobalEnv ctx

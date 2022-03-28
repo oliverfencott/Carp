@@ -38,6 +38,7 @@ module Forms
 where
 
 import Data.List (intercalate)
+import Lsp (printErrorDiagnostic)
 import Obj
 import SymPath
 import Types
@@ -197,8 +198,27 @@ formatModifier m = "\n  - " ++ show m
 -- | Format a malformed form error for printing.
 format :: ExecutionMode -> Malformed -> String
 format executionMode e = case executionMode of
-  Analysis -> "TODO: FORMAT ERRORS FOR LSP"
+  Analysis ->
+    -- printJson (makeErrorDiagnostic (show e) _info)
+    printErrorDiagnostic (show e) _info
+  -- show e
   _ -> "[ERROR] " ++ show e
+  where
+    xobj = case e of
+      InvalidIdentifier x _ -> Just x
+      QualifiedIdentifier x _ -> Just x
+      GenericMalformed x -> Just x
+      InvalidArguments x _ -> Just x
+      InvalidBody x _ -> Just x
+      InvalidCondition x _ -> Just x
+      InvalidType x _ -> Just x
+      InvalidBindings x _ -> Just x
+      UnevenForms x _ _ -> Just x
+      InsufficientArguments x _ _ _ -> Just x
+      TooManyArguments x _ _ _ -> Just x
+      InvalidApplication x -> Just x
+      DoMissingForms -> Nothing
+    _info = xobj >>= xobjInfo
 
 --------------------------------------------------------------------------------
 -- Validation functions

@@ -1,6 +1,5 @@
 module Commands where
 
-import Analysis (debugAllSymbolsInFile)
 import ColorText
 import Context
 import Control.Exception
@@ -956,20 +955,3 @@ commandType ctx (XObj x _ _) =
     typeOf Ref = "ref"
     typeOf Deref = "deref"
     typeOf (Interface _ _) = "interface"
-
-commandDebugAllSymbols :: UnaryCommandCallback
-commandDebugAllSymbols ctx filePathObj =
-  case filePathObj of
-    (XObj (Str rawPath) _ _) ->
-      do
-        debugAllSymbolsInFile ctx filePath
-        pure (ctx, dynamicNil)
-      where
-        filePath = stripFileProtocol rawPath
-    _ ->
-      pure
-        ( evalError
-            ctx
-            "'debug-all' argument must be a string (filepath)"
-            Nothing
-        )

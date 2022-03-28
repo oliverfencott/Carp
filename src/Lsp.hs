@@ -193,11 +193,7 @@ hoverToJson (HoverXObj env xobj) =
               [ ("kind", JsonString "markdown"),
                 ( "value",
                   JsonString
-                    ( --
-                      -- "__"
-                      --   ++ name
-                      --   ++ "__ `"
-                      "```carp\n"
+                    ( "```carp\n"
                         ++ type_
                         ++ "\n```"
                         ++ "\n***\n"
@@ -427,12 +423,15 @@ printDiagnostic severity message xobj =
         xobj
     diagnostics = JsonList [makeDiagnostic severity message xobj]
 
+makeErrorDiagnostic :: String -> Maybe Info -> Json
+makeErrorDiagnostic = makeDiagnostic Error
+
 makeDiagnostic :: DiagnosticSeverity -> String -> Maybe Info -> Json
 makeDiagnostic severity message xobj =
   JsonMap
     [ ("message", JsonString message),
       ("source", JsonString "carp"),
-      ("severity", JsonString (show severity)),
+      ("severity", JsonNumber (show severity)),
       ("range", range)
     ]
   where

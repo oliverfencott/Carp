@@ -139,8 +139,7 @@ instance Show EvaluationError where
 -- | Given a Showable error, turn it into an EvalError
 -- TODO: Unify this and toEvalError and remove one of these functions.
 throwErr :: Show a => a -> Context -> Maybe Info -> (Context, Either EvalError XObj)
-throwErr err ctx info =
-  evalError ctx (show err) info
+throwErr err ctx = evalError ctx (show err)
 
 --------------------------------------------------------------------------------
 -- Invalid Argument Helpers

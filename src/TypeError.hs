@@ -5,6 +5,7 @@ import Data.List (nub)
 import Data.Maybe (fromMaybe)
 import Info
 import Json (Json (JsonList, JsonMap, JsonNumber, JsonString), printJson)
+-- import Lsp (printErrorDiagnostic)
 import qualified Map
 import Obj
 import Project
@@ -447,8 +448,8 @@ machineReadableErrorStrings fppl err =
     _ ->
       [show err]
 
-lspErrorStrings :: TypeError -> String
-lspErrorStrings err =
+lspErrorString :: TypeError -> String
+lspErrorString err =
   printJson publishDiagnosticsParams
   where
     msg = case err of
@@ -734,6 +735,14 @@ makeEvalError ctx err msg info =
                     Just okInfo -> machineReadableInfo fppl okInfo ++ " " ++ msg
                     Nothing -> msg
            in (ctx, Left (EvalError messageWhenChecking [] fppl Nothing)) -- Passing no history to avoid appending it at the end in 'show' instance for EvalError
+        Analysis ->
+          let _info = case err of
+                Nothing -> info
+                Just e -> maybeXObjFromTypeError e >>= xobjInfo
+              -- messageWhenChecking = maybe msg lspErrorString err
+              -- _message = printErrorDiagnostic messageWhenChecking _info
+              message = maybe msg lspErrorString err
+           in (ctx, Left (EvalError message [] fppl Nothing))
         _ -> (ctx, Left (EvalError msg history fppl info))
 
 -- | Converts a TypeError to a string, taking contextExecMode/fppl into account
@@ -742,6 +751,8 @@ typeErrorToString ctx err =
   let fppl = projectFilePathPrintLength (contextProj ctx)
    in case contextExecMode ctx of
         Check -> joinedMachineReadableErrorStrings fppl err
+        -- TODO:
+        Analysis -> joinedMachineReadableErrorStrings fppl err
         _ -> show err
 
 keysInEnvEditDistance :: SymPath -> Env -> Int -> [String]
@@ -793,3 +804,58 @@ typeVariablesInOrderOfAppearance t@(VarTy _) =
   [t]
 typeVariablesInOrderOfAppearance _ =
   []
+
+maybeXObjFromTypeError :: TypeError -> Maybe XObj
+maybeXObjFromTypeError err =
+  case err of
+    SymbolMissingType x _ -> Just x
+    DefnMissingType x -> Just x
+    DefMissingType x -> Just x
+    ExpressionMissingType x -> Just x
+    SymbolNotDefined _ x _ -> Just x
+    InvalidObj _ x -> Just x
+    InvalidObjExample _ x _ -> Just x
+    CantUseDerefOutsideFunctionApplication x -> Just x
+    NotAType x -> Just x
+    WrongArgCount x _ _ -> Just x
+    NotAFunction x -> Just x
+    NoStatementsInDo x -> Just x
+    TooManyFormsInBody x -> Just x
+    NoFormsInBody x -> Just x
+    LeadingColon x -> Just x
+    CantDisambiguate x _ _ _ -> Just x
+    CantDisambiguateInterfaceLookup x _ _ _ -> Just x
+    SeveralExactMatches x _ _ _ -> Just x
+    NoMatchingSignature x _ _ _ -> Just x
+    NotAValidType x -> Just x
+    FunctionsCantReturnRefTy x _ -> Just x
+    LetCantReturnRefTy x _ -> Just x
+    GettingReferenceToUnownedValue x -> Just x
+    UsingUnownedValue x -> Just x
+    UsingCapturedValue x -> Just x
+    ArraysCannotContainRefs x -> Just x
+    MainCanOnlyReturnUnitOrInt x _Ty -> Just x
+    MainCannotHaveArguments x _Int -> Just x
+    CannotConcretize x -> Just x
+    TooManyAnnotateCalls x -> Just x
+    CannotSet x -> Just x
+    CannotSetVariableFromLambda x _ -> Just x
+    DoesNotMatchSignatureAnnotation x _ -> Just x
+    CannotMatch x -> Just x
+    InvalidSumtypeCase x -> Just x
+    InvalidMemberType _ x -> Just x
+    InvalidMemberTypeWhenConcretizing _ x _ -> Just x
+    NotAmongRegisteredTypes _ x -> Just x
+    DuplicateBinding x -> Just x
+    DefinitionsMustBeAtToplevel x -> Just x
+    UsingDeadReference x _ -> Just x
+    UninhabitedConstructor _ x _ _ -> Just x
+    FailedToAddLambdaStructToTyEnv _ x -> Just x
+    InvalidStructField x -> Just x
+    (UnificationFailed (Constraint _ _ aObj _ _ _) _ _) -> Just aObj
+    HolesFound _ -> Nothing
+    UnevenMembers _ -> Nothing
+    DuplicatedMembers _ -> Nothing
+    InvalidLetBinding _ _ -> Nothing
+    InconsistentKinds _ _ -> Nothing
+    FailedToInstantiateGenericType _Ty -> Nothing

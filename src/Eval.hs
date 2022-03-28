@@ -2,7 +2,7 @@
 
 module Eval where
 
-import Analysis (definitionLocation, textDocumentCompletion, textDocumentDocumentSymbol, textHover)
+import Analysis (debugAllSymbolsInFile, definitionLocation, textDocumentCompletion, textDocumentDocumentSymbol, textHover)
 import ColorText
 import Commands
 import Context
@@ -571,6 +571,7 @@ executeCommand ctx@(Context env _ _ _ _ _ _ _) xobj =
         else evalDynamic ResolveGlobal ctx xobj
     case result of
       Left e@EvalError {} -> do
+        putStrLn "Eval.hs 574"
         reportExecutionError newCtx e
         pure (xobj, newCtx)
       Left (HasStaticCall _ _) -> callFromRepl newCtx xobj
@@ -583,6 +584,7 @@ executeCommand ctx@(Context env _ _ _ _ _ _ _) xobj =
       (nc, r) <- annotateWithinContext newCtx xobj'
       case r of
         Left err -> do
+          putStrLn "Eval.hs 587"
           reportExecutionError nc err
           pure (xobj', nc)
         Right (ann, deps) -> do
@@ -616,9 +618,13 @@ reportExecutionError ctx errorMessage =
     -- NOTE: This is kind of rubbish but assume that the string is already
     -- an lsp error ready for printing
     (Analysis, EvalError msg _ _ _info) ->
-      putStrLn msg
+      do
+        putStrLn "Eval.hs 620"
+        putStrLn msg
     (Analysis, HasStaticCall _xobj _info) ->
-      putStrLn (printEvalError errorMessage)
+      do
+        putStrLn "Fix Eval.hs ln 624"
+        putStrLn (printEvalError errorMessage)
     _ ->
       do
         emitErrorBare (show errorMessage)
@@ -729,7 +735,7 @@ annotateWithinContext ctx xobj = do
                       -- TODO: Replace this with a single call to evalError (which already checks the execution mode)
                       case contextExecMode ctx of
                         Check -> pure (evalError ctx (joinLines (machineReadableErrorStrings fppl err)) Nothing)
-                        Analysis -> pure (evalError ctx (lspErrorStrings err) Nothing)
+                        Analysis -> pure (evalError ctx (lspErrorString err) Nothing)
                         _ -> pure (evalError ctx (show err) (xobjInfo xobj))
                     Right ok -> pure (ctx, Right ok)
 
@@ -1134,6 +1140,29 @@ commandValidate ctx filePathObj =
         ( evalError
             ctx
             "'validate' argument must be a string (filepath)"
+            Nothing
+        )
+
+commandDebugAllSymbols :: UnaryCommandCallback
+commandDebugAllSymbols ctx filePathObj =
+  case filePathObj of
+    (XObj (Str rawPath) info _) ->
+      loadInternal ctx filePathObj filePath info Nothing DoesReload
+        >>= ( \(updatedCtx, response) ->
+                case response of
+                  Left _ -> pure (ctx, dynamicNil)
+                  Right _ ->
+                    do
+                      debugAllSymbolsInFile updatedCtx filePath
+                      pure (ctx, dynamicNil)
+            )
+      where
+        filePath = stripFileProtocol rawPath
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'debug-all' argument must be a string (filepath)"
             Nothing
         )
 
