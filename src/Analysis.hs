@@ -6,29 +6,45 @@
 
 module Analysis where
 
+import Control.Monad (unless)
 import Data.Either
 import Data.Function ((&))
 import Data.List (find, sortBy)
+import Data.Maybe (fromMaybe)
 import Env (findAllNestedBinders, findAllXObjsInFile, lookupMeta, searchValueBinder)
 import Info
-import Json (Json (JsonList), printJson)
-import Lsp (documentSymbolToJson, hoverToJson)
+import Json (Json (JsonList, JsonMap, JsonNull, JsonString), ToJson (toJson))
+import Lsp (SymbolTag (Deprecated))
 import qualified Lsp
 import Map (assocs)
 import qualified Meta
 import Obj
-  ( Binder (binderMeta, binderXObj),
-    Context (contextGlobalEnv),
+  ( Binder (Binder, binderMeta, binderXObj),
+    Context (contextGlobalEnv, contextTypeEnv),
+    Env,
     MetaData (getMeta),
-    XObj (xobjInfo, xobjTy),
+    Obj (Bol, Str),
+    TypeEnv (getTypeEnv),
+    XObj (XObj, xobjInfo, xobjObj, xobjTy),
     getName,
     getPath,
     metaIsTrue,
+    objToLspSymbolKind,
     pretty,
+    toLspCompletionItemKind,
     unwrapStringXObj,
   )
+import Types (tyToLspSymbolKind)
 import Util (joinLines, stripFileProtocol)
 import Prelude hiding (abs)
+
+newtype CompletionItem = CompletionItem Binder
+
+uriToString :: Info -> String
+uriToString info = "file://" ++ infoFile info
+
+getKind :: Binder -> Lsp.CompletionItemKind
+getKind binder = toLspCompletionItemKind $ xobjObj $ binderXObj binder
 
 textDocumentDocumentSymbol :: Context -> String -> IO ()
 textDocumentDocumentSymbol ctx rawPath =
@@ -36,11 +52,26 @@ textDocumentDocumentSymbol ctx rawPath =
     & findAllNestedBinders
     & filter binderNotHidden
     & filter ((== stripFileProtocol rawPath) . fileFromBinder)
-    & map Lsp.DocumentSymbol
     & map documentSymbolToJson
     & JsonList
-    & printJson
-    & putStrLn
+    & print
+
+-- TODO: THIS IS RETURNING NULL BECAUSE OF A LACK OF METADATA
+documentSymbolToJson :: Binder -> Json
+documentSymbolToJson ((Binder _ (XObj _ Nothing _))) = JsonNull
+documentSymbolToJson ((Binder meta xobj@(XObj obj (Just info) _))) =
+  toJson symbolInformation
+  where
+    symbolInformation = Lsp.SymbolInformation name kind tags location
+    tags = case Meta.get "deprecated" meta of
+      Just (XObj (Bol True) _ _) -> [Deprecated]
+      Nothing -> []
+      Just _ -> []
+    name = getName xobj
+    location =
+      Lsp.Location uri (infoToLspRange info)
+    uri = uriToString info
+    kind = maybe (objToLspSymbolKind obj) tyToLspSymbolKind (xobjTy xobj)
 
 textDocumentCompletion :: Context -> String -> IO ()
 textDocumentCompletion ctx _filePath =
@@ -51,11 +82,32 @@ textDocumentCompletion ctx _filePath =
           let res = [binder]
            in res
       )
-    & map Lsp.CompletionItem
-    & map Lsp.completionItemToJson
+    & map CompletionItem
+    & map completionItemToJson
     & JsonList
-    & printJson
-    & putStrLn
+    & print
+
+completionItemToJson :: CompletionItem -> Json
+completionItemToJson (CompletionItem binder) =
+  JsonMap
+    [ ("label", JsonString label),
+      ("detail", JsonString detail),
+      ( "documentation",
+        JsonMap
+          [ ("kind", JsonString "markdown"),
+            ("value", JsonString documentation)
+          ]
+      ),
+      ("kind", toJson kind)
+    ]
+  where
+    documentation = case Meta.get "doc" (binderMeta binder) of
+      Just (XObj (Str doc) _ _) -> show doc
+      Just _ -> ""
+      Nothing -> ""
+    label = getName (binderXObj binder)
+    detail = maybe "" show (xobjTy (binderXObj binder))
+    kind = getKind binder
 
 binderNotHidden :: Binder -> Bool
 binderNotHidden binder =
@@ -66,13 +118,38 @@ textHover ctx rawPath line column =
   case maybeXObj of
     Nothing -> pure ()
     Just xobj ->
-      putStrLn (printJson (hoverToJson (Lsp.HoverXObj env xobj)))
+      putStrLn (hoverToJson env xobj)
   where
     filePath = stripFileProtocol rawPath
     env = contextGlobalEnv ctx
     allSymbols = findAllXObjsInFile env filePath
     onLine = xobjsOnLine line allSymbols
     maybeXObj = findObjAtColumn column onLine
+
+hoverToJson :: Env -> XObj -> String
+hoverToJson env xobj =
+  show (Lsp.Hover contents range)
+  where
+    info = fromMaybe dummyInfo (xobjInfo xobj)
+    range = infoToLspRange info
+    value =
+      "```carp\n"
+        ++ type_
+        ++ "\n```"
+        ++ "\n***\n"
+        ++ either id id doc
+    contents = Lsp.MarkupContent Lsp.Markdown value
+    symPath = getPath xobj
+    binder = either (const Nothing) Just (searchValueBinder env symPath)
+    fallBackType = maybe "" show (binder >>= xobjTy . binderXObj)
+    type_ = maybe fallBackType show (xobjTy xobj)
+    meta = lookupMeta env symPath
+    doc = case meta of
+      Left _ -> Left ""
+      Right m ->
+        case Meta.get "doc" m of
+          Nothing -> Right ""
+          Just x -> unwrapStringXObj x
 
 fileFromBinder :: Binder -> String
 fileFromBinder binder = maybe "" infoFile (xobjInfo (binderXObj binder))
@@ -82,6 +159,7 @@ debugAllSymbolsInFile ctx rawPath =
   do
     putStrLn rawPath
     putStrLn filePath
+    print (getTypeEnv (contextTypeEnv ctx))
     mapM_
       ( \binder ->
           let xobj = binderXObj binder
@@ -106,8 +184,8 @@ debugAllSymbolsInFile ctx rawPath =
                   meta
            in do
                 putStrLn ("Name: " ++ getName xobj)
-                putStrLn ("Doc: " ++ doc)
-                putStrLn ("All meta: " ++ allMeta)
+                unless (null doc) (putStrLn ("Doc: " ++ doc))
+                unless (null allMeta) (putStrLn ("All meta: " ++ allMeta))
                 putStrLn
                   ( maybe
                       ""
@@ -118,14 +196,18 @@ debugAllSymbolsInFile ctx rawPath =
                   )
                 putStrLn (maybe "" (\ty -> "Type: " ++ show ty) (xobjTy xobj))
                 print (pretty xobj)
+                case xobjInfo xobj of
+                  Nothing -> pure ()
+                  Just t -> print t
                 putStrLn "\n"
       )
-      binders
+      (binders ++ typeEnvBinders)
   where
     filePath = stripFileProtocol rawPath
     env = contextGlobalEnv ctx
     valueBinders = findAllNestedBinders env
     allBinders = valueBinders
+    typeEnvBinders = findAllNestedBinders (getTypeEnv (contextTypeEnv ctx))
 
     -- NOTE: This isn't needed. Just for debugging
     sort :: Binder -> Binder -> Ordering
@@ -153,10 +235,9 @@ debugAllSymbolsInFile ctx rawPath =
 
 definitionLocation :: Context -> String -> Int -> Int -> IO ()
 definitionLocation ctx rawPath line column =
-  case maybeBinder of
+  case maybeInfo of
     Nothing -> pure ()
-    Just binder ->
-      putStrLn (printJson (Lsp.locationToJson (Lsp.Location binder)))
+    Just info -> print (locationToJson info)
   where
     filePath = stripFileProtocol rawPath
     env = contextGlobalEnv ctx
@@ -166,6 +247,9 @@ definitionLocation ctx rawPath line column =
     maybeBinder =
       maybeXObj
         >>= (either (const Nothing) Just . searchValueBinder env . getPath)
+    maybeInfo = maybeBinder >>= (xobjInfo . binderXObj)
+    locationToJson info =
+      toJson (Lsp.Location (uriToString info) (infoToLspRange info))
 
 xobjsOnLine :: Int -> [XObj] -> [XObj]
 xobjsOnLine line =

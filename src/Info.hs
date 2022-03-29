@@ -12,12 +12,18 @@ module Info
     makeTypeVariableNameFromInfo,
     setDeletersOnInfo,
     addDeletersToInfo,
+    infoToLspRange,
+    maybeInfoToFileUri,
+    maybeInfoToLspRange,
   )
 where
 
+import Data.Maybe (fromMaybe)
+import Lsp (Position (Position), Range (Range))
 import Path (takeFileName)
 import qualified Set
 import SymPath
+import Util (prependFileProtocol)
 
 -- | Information about where the Obj originated from.
 data Info = Info
@@ -116,3 +122,21 @@ setDeletersOnInfo i deleters = fmap (\i' -> i' {infoDelete = deleters}) i
 addDeletersToInfo :: Maybe Info -> Set.Set Deleter -> Maybe Info
 addDeletersToInfo i deleters =
   fmap (\i' -> i' {infoDelete = Set.union (infoDelete i') deleters}) i
+
+infoToLspRange :: Info -> Range
+infoToLspRange info =
+  Range
+    (Position lineStart columnStart)
+    (Position lineStart (columnStart + 1))
+  where
+    lineStart = max (infoLine info - 1) 0
+    columnStart = max (infoColumn info - 1) 0 -- TODO: Default to see if it actually works. Figure out how to do this correctly
+
+maybeInfoToLspRange :: Maybe Info -> Range
+maybeInfoToLspRange info = infoToLspRange (fromMaybe dummyInfo info)
+
+maybeInfoToFileUri :: Maybe Info -> String
+maybeInfoToFileUri = maybe "" prependUriFile
+
+prependUriFile :: Info -> String
+prependUriFile = prependFileProtocol . infoFile

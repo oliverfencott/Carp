@@ -16,11 +16,11 @@ import Data.Maybe (fromJust, fromMaybe)
 import Deftype
 import Emit
 import Env (addUsePath, contextEnv, insert, lookupBinderEverywhere, lookupEverywhere, lookupMeta, searchValueBinder)
-import EvalError
 import Infer
 import Info
 import Interfaces
-import Lsp (printErrorDiagnostic, printWarningDiagnostic)
+import Lsp (Diagnostic (Diagnostic))
+import qualified Lsp
 import Managed
 import qualified Map
 import qualified Meta
@@ -33,7 +33,7 @@ import Sumtypes
 import SymPath
 import Template
 import ToTemplate
-import TypeError
+import TypeError (TypeError, evalError, makeEvalError, typeErrorToString)
 import TypePredicates
 import Types
 import Util
@@ -245,9 +245,17 @@ define hidden ctx qualifiedXObj =
       putStrLn (printErrorDiagnostic e (xobjInfo annXObj))
     printError _ e = putStrLnWithColor Red e
 
+printErrorDiagnostic :: p1 -> p2 -> [Char]
+printErrorDiagnostic _e _info = "PRIMITIVES.HS 247"
+
 printWarning :: ExecutionMode -> Maybe XObj -> String -> IO ()
 printWarning Analysis xobj warning =
-  putStrLn (printWarningDiagnostic warning (xobj >>= xobjInfo))
+  print diagnostics
+  where
+    info = xobj >>= xobjInfo
+    uri = maybeInfoToFileUri info
+    diagnostic = Diagnostic Lsp.Warning warning (maybeInfoToLspRange info) Nothing
+    diagnostics = Lsp.PublishDiagnosticsParams uri [diagnostic]
 printWarning _ _ warning = emitWarning warning
 
 primitiveRegisterType :: VariadicPrimitiveCallback
@@ -391,7 +399,7 @@ primitiveStructuredInfo (XObj _ i _) ctx (XObj (Sym path _) _ _) =
     Left _ ->
       case lookupBinderInContextEnv ctx path of
         Right bind -> return (ctx, Right $ workOnBinder bind)
-        Left e -> return $ throwErr e ctx i
+        Left e -> return $ evalError ctx (show e) i
   where
     workOnBinder :: Binder -> XObj
     workOnBinder (Binder metaData (XObj _ (Just (Info l c f _ _)) t)) =
@@ -681,7 +689,7 @@ makeType ctx name vars constructor =
   let qpath = (qualifyPath ctx (SymPath [] name))
       ty = StructTy (ConcreteNameTy (unqualify qpath)) vars
       (typeX, members, creator) = constructor ty
-   in case ( unwrapTypeErr ctx (creator ctx name vars members Nothing)
+   in case ( unwrapTypeErr ctx typeX (creator ctx name vars members Nothing)
                >>= \(_, modx, deps) ->
                  pure (existingOr ctx qpath modx)
                    >>= \mod' ->
@@ -701,9 +709,9 @@ makeType ctx name vars constructor =
 
 -- | TODO: Possibly use this function in more places where currently 'unwrapErr' is
 -- used, since that function ignores contextExecMode/fppl.
-unwrapTypeErr :: Context -> Either TypeError a -> Either String a
-unwrapTypeErr ctx (Left err) = Left (typeErrorToString ctx err)
-unwrapTypeErr _ (Right x) = Right x
+unwrapTypeErr :: Context -> XObj -> Either TypeError a -> Either String a
+unwrapTypeErr ctx _xobj (Left err) = Left (typeErrorToString ctx err)
+unwrapTypeErr _ _xobj (Right x) = Right x
 
 -- | Automatically derive implementations of interfaces.
 autoDerive :: Context -> Ty -> [Either ContextError Binder] -> IO (Context, Either EvalError XObj)
@@ -771,7 +779,7 @@ primitiveUse xobj ctx (XObj (Sym path _) _ _) =
             >>= pure . replaceGlobalEnv ctx
         )
     updateModuleUsePaths _ _ _ _ =
-      (evalError ctx "Context path pointed to non-module!" (xobjInfo xobj))
+      evalError ctx "Context path pointed to non-module!" (xobjInfo xobj)
 primitiveUse _ ctx x =
   argumentErr ctx "use" "a symbol" "first" x
 

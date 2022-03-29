@@ -4,8 +4,7 @@ import Constraints
 import Data.List (nub)
 import Data.Maybe (fromMaybe)
 import Info
-import Json (Json (JsonList, JsonMap, JsonNumber, JsonString), printJson)
--- import Lsp (printErrorDiagnostic)
+import Lsp (Diagnostic (Diagnostic), DiagnosticSeverity (Error), PublishDiagnosticsParams (PublishDiagnosticsParams))
 import qualified Map
 import Obj
 import Project
@@ -448,9 +447,63 @@ machineReadableErrorStrings fppl err =
     _ ->
       [show err]
 
+labelFromTypeError :: TypeError -> String
+labelFromTypeError err = case err of
+  SymbolMissingType _ _ -> "SymbolMissingType"
+  DefnMissingType _ -> "DefnMissingType"
+  DefMissingType _ -> "DefMissingType"
+  ExpressionMissingType _ -> "ExpressionMissingType"
+  SymbolNotDefined {} -> "SymbolNotDefined"
+  InvalidObj _ _ -> "InvalidObj"
+  InvalidObjExample {} -> "InvalidObjExample"
+  CantUseDerefOutsideFunctionApplication _ -> "CantUseDerefOutsideFunctionApplication"
+  NotAType _ -> "NotAType"
+  WrongArgCount {} -> "WrongArgCount"
+  NotAFunction _ -> "NotAFunction"
+  NoStatementsInDo _ -> "NoStatementsInDo"
+  TooManyFormsInBody _ -> "TooManyFormsInBody"
+  NoFormsInBody _ -> "NoFormsInBody"
+  LeadingColon _ -> "LeadingColon"
+  CantDisambiguate {} -> "CantDisambiguate"
+  CantDisambiguateInterfaceLookup {} -> "CantDisambiguateInterfaceLookup"
+  SeveralExactMatches {} -> "SeveralExactMatches"
+  NoMatchingSignature {} -> "NoMatchingSignature"
+  NotAValidType _ -> "NotAValidType"
+  FunctionsCantReturnRefTy _ _ -> "FunctionsCantReturnRefTy"
+  LetCantReturnRefTy _ _ -> "LetCantReturnRefTy"
+  GettingReferenceToUnownedValue _ -> "GettingReferenceToUnownedValue"
+  UsingUnownedValue _ -> "UsingUnownedValue"
+  UsingCapturedValue _ -> "UsingCapturedValue"
+  ArraysCannotContainRefs _ -> "ArraysCannotContainRefs"
+  MainCanOnlyReturnUnitOrInt _ _Ty -> "MainCanOnlyReturnUnitOrInt"
+  MainCannotHaveArguments _ _Int -> "MainCannotHaveArguments"
+  CannotConcretize _ -> "CannotConcretize"
+  TooManyAnnotateCalls _ -> "TooManyAnnotateCalls"
+  CannotSet _ -> "CannotSet"
+  CannotSetVariableFromLambda _ _ -> "CannotSetVariableFromLambda"
+  DoesNotMatchSignatureAnnotation _ _ -> "DoesNotMatchSignatureAnnotation"
+  CannotMatch _ -> "CannotMatch"
+  InvalidSumtypeCase _ -> "InvalidSumtypeCase"
+  InvalidMemberType _ _ -> "InvalidMemberType"
+  InvalidMemberTypeWhenConcretizing {} -> "InvalidMemberTypeWhenConcretizing"
+  NotAmongRegisteredTypes _ _ -> "NotAmongRegisteredTypes"
+  DuplicateBinding _ -> "DuplicateBinding"
+  DefinitionsMustBeAtToplevel _ -> "DefinitionsMustBeAtToplevel"
+  UsingDeadReference _ _ -> "UsingDeadReference"
+  UninhabitedConstructor {} -> "UninhabitedConstructor"
+  FailedToAddLambdaStructToTyEnv _ _ -> "FailedToAddLambdaStructToTyEnv"
+  InvalidStructField _ -> "InvalidStructField"
+  UnificationFailed {} -> "UnificationFailed"
+  HolesFound _ -> "HolesFound"
+  UnevenMembers _ -> "UnevenMembers"
+  DuplicatedMembers _ -> "DuplicatedMembers"
+  InvalidLetBinding _ _ -> "InvalidLetBinding"
+  InconsistentKinds _ _ -> "InconsistentKinds"
+  FailedToInstantiateGenericType _Ty -> "FailedToInstantiateGenericType"
+
 lspErrorString :: TypeError -> String
 lspErrorString err =
-  printJson publishDiagnosticsParams
+  publishDiagnosticsParams
   where
     msg = case err of
       (UnificationFailed (Constraint _ b aObj _ _ _) mappings _) ->
@@ -563,138 +616,22 @@ lspErrorString err =
           ++ " to the type environment."
       _ ->
         show err
-    xObj = case err of
-      SymbolMissingType x _ -> Just x
-      DefnMissingType x -> Just x
-      DefMissingType x -> Just x
-      ExpressionMissingType x -> Just x
-      SymbolNotDefined _ x _ -> Just x
-      InvalidObj _ x -> Just x
-      InvalidObjExample _ x _ -> Just x
-      CantUseDerefOutsideFunctionApplication x -> Just x
-      NotAType x -> Just x
-      WrongArgCount x _ _ -> Just x
-      NotAFunction x -> Just x
-      NoStatementsInDo x -> Just x
-      TooManyFormsInBody x -> Just x
-      NoFormsInBody x -> Just x
-      LeadingColon x -> Just x
-      CantDisambiguate x _ _ _ -> Just x
-      CantDisambiguateInterfaceLookup x _ _ _ -> Just x
-      SeveralExactMatches x _ _ _ -> Just x
-      NoMatchingSignature x _ _ _ -> Just x
-      NotAValidType x -> Just x
-      FunctionsCantReturnRefTy x _ -> Just x
-      LetCantReturnRefTy x _ -> Just x
-      GettingReferenceToUnownedValue x -> Just x
-      UsingUnownedValue x -> Just x
-      UsingCapturedValue x -> Just x
-      ArraysCannotContainRefs x -> Just x
-      MainCanOnlyReturnUnitOrInt x _Ty -> Just x
-      MainCannotHaveArguments x _Int -> Just x
-      CannotConcretize x -> Just x
-      TooManyAnnotateCalls x -> Just x
-      CannotSet x -> Just x
-      CannotSetVariableFromLambda x _ -> Just x
-      DoesNotMatchSignatureAnnotation x _ -> Just x
-      CannotMatch x -> Just x
-      InvalidSumtypeCase x -> Just x
-      InvalidMemberType _ x -> Just x
-      InvalidMemberTypeWhenConcretizing _ x _ -> Just x
-      NotAmongRegisteredTypes _ x -> Just x
-      DuplicateBinding x -> Just x
-      DefinitionsMustBeAtToplevel x -> Just x
-      UsingDeadReference x _ -> Just x
-      UninhabitedConstructor _ x _ _ -> Just x
-      FailedToAddLambdaStructToTyEnv _ x -> Just x
-      InvalidStructField x -> Just x
-      (UnificationFailed (Constraint _ _ aObj _ _ _) _ _) -> Just aObj
-      HolesFound _ -> Nothing
-      UnevenMembers _ -> Nothing
-      DuplicatedMembers _ -> Nothing
-      InvalidLetBinding _ _ -> Nothing
-      InconsistentKinds _ _ -> Nothing
-      FailedToInstantiateGenericType _Ty -> Nothing
-    codeLabel = case err of
-      SymbolMissingType _ _ -> "SymbolMissingType"
-      DefnMissingType _ -> "DefnMissingType"
-      DefMissingType _ -> "DefMissingType"
-      ExpressionMissingType _ -> "ExpressionMissingType"
-      SymbolNotDefined {} -> "SymbolNotDefined"
-      InvalidObj _ _ -> "InvalidObj"
-      InvalidObjExample {} -> "InvalidObjExample"
-      CantUseDerefOutsideFunctionApplication _ -> "CantUseDerefOutsideFunctionApplication"
-      NotAType _ -> "NotAType"
-      WrongArgCount {} -> "WrongArgCount"
-      NotAFunction _ -> "NotAFunction"
-      NoStatementsInDo _ -> "NoStatementsInDo"
-      TooManyFormsInBody _ -> "TooManyFormsInBody"
-      NoFormsInBody _ -> "NoFormsInBody"
-      LeadingColon _ -> "LeadingColon"
-      CantDisambiguate {} -> "CantDisambiguate"
-      CantDisambiguateInterfaceLookup {} -> "CantDisambiguateInterfaceLookup"
-      SeveralExactMatches {} -> "SeveralExactMatches"
-      NoMatchingSignature {} -> "NoMatchingSignature"
-      NotAValidType _ -> "NotAValidType"
-      FunctionsCantReturnRefTy _ _ -> "FunctionsCantReturnRefTy"
-      LetCantReturnRefTy _ _ -> "LetCantReturnRefTy"
-      GettingReferenceToUnownedValue _ -> "GettingReferenceToUnownedValue"
-      UsingUnownedValue _ -> "UsingUnownedValue"
-      UsingCapturedValue _ -> "UsingCapturedValue"
-      ArraysCannotContainRefs _ -> "ArraysCannotContainRefs"
-      MainCanOnlyReturnUnitOrInt _ _Ty -> "MainCanOnlyReturnUnitOrInt"
-      MainCannotHaveArguments _ _Int -> "MainCannotHaveArguments"
-      CannotConcretize _ -> "CannotConcretize"
-      TooManyAnnotateCalls _ -> "TooManyAnnotateCalls"
-      CannotSet _ -> "CannotSet"
-      CannotSetVariableFromLambda _ _ -> "CannotSetVariableFromLambda"
-      DoesNotMatchSignatureAnnotation _ _ -> "DoesNotMatchSignatureAnnotation"
-      CannotMatch _ -> "CannotMatch"
-      InvalidSumtypeCase _ -> "InvalidSumtypeCase"
-      InvalidMemberType _ _ -> "InvalidMemberType"
-      InvalidMemberTypeWhenConcretizing {} -> "InvalidMemberTypeWhenConcretizing"
-      NotAmongRegisteredTypes _ _ -> "NotAmongRegisteredTypes"
-      DuplicateBinding _ -> "DuplicateBinding"
-      DefinitionsMustBeAtToplevel _ -> "DefinitionsMustBeAtToplevel"
-      UsingDeadReference _ _ -> "UsingDeadReference"
-      UninhabitedConstructor {} -> "UninhabitedConstructor"
-      FailedToAddLambdaStructToTyEnv _ _ -> "FailedToAddLambdaStructToTyEnv"
-      InvalidStructField _ -> "InvalidStructField"
-      UnificationFailed {} -> "UnificationFailed"
-      HolesFound _ -> "HolesFound"
-      UnevenMembers _ -> "UnevenMembers"
-      DuplicatedMembers _ -> "DuplicatedMembers"
-      InvalidLetBinding _ _ -> "InvalidLetBinding"
-      InconsistentKinds _ _ -> "InconsistentKinds"
-      FailedToInstantiateGenericType _Ty -> "FailedToInstantiateGenericType"
 
+    xObj = maybeXObjFromTypeError err
+    maybeInfo = xobjInfo =<< xObj
+    info = fromMaybe dummyInfo maybeInfo
+    codeLabel = labelFromTypeError err
     publishDiagnosticsParams =
-      case xObj of
-        Nothing -> JsonString msg -- TODO: These need to still be responses
-        Just t ->
-          case xobjInfo t of
-            Nothing -> JsonString "no XObjInfo" -- TODO: These need to still be responses
-            Just info ->
-              JsonMap [uri, diagnostics]
-              where
-                uri = ("uri", JsonString (infoFile info))
-                diagnostics =
-                  ( "diagnostics",
-                    JsonList
-                      [ JsonMap
-                          [ severity,
-                            message,
-                            range,
-                            code,
-                            source
-                          ]
-                      ]
-                  )
-                severity = ("severity", JsonNumber "1")
-                message = ("message", JsonString msg)
-                code = ("code", JsonString codeLabel)
-                source = ("source", JsonString "carp")
-                range = ("range", xobjToRange t)
+      show
+        ( PublishDiagnosticsParams
+            (infoFile info)
+            [ Diagnostic
+                Error
+                msg
+                (infoToLspRange info)
+                (Just codeLabel)
+            ]
+        )
 
 joinedMachineReadableErrorStrings :: FilePathPrintLength -> TypeError -> String
 joinedMachineReadableErrorStrings fppl err = joinWith "\n\n" (machineReadableErrorStrings fppl err)
@@ -739,8 +676,6 @@ makeEvalError ctx err msg info =
           let _info = case err of
                 Nothing -> info
                 Just e -> maybeXObjFromTypeError e >>= xobjInfo
-              -- messageWhenChecking = maybe msg lspErrorString err
-              -- _message = printErrorDiagnostic messageWhenChecking _info
               message = maybe msg lspErrorString err
            in (ctx, Left (EvalError message [] fppl Nothing))
         _ -> (ctx, Left (EvalError msg history fppl info))
@@ -751,8 +686,7 @@ typeErrorToString ctx err =
   let fppl = projectFilePathPrintLength (contextProj ctx)
    in case contextExecMode ctx of
         Check -> joinedMachineReadableErrorStrings fppl err
-        -- TODO:
-        Analysis -> joinedMachineReadableErrorStrings fppl err
+        Analysis -> lspErrorString err
         _ -> show err
 
 keysInEnvEditDistance :: SymPath -> Env -> Int -> [String]

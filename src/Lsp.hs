@@ -1,14 +1,6 @@
 module Lsp where
 
-import Env (lookupMeta, searchValueBinder)
-import Info (Info (infoColumn, infoFile, infoLine))
-import Json (Json (JsonList, JsonMap, JsonNull, JsonNumber, JsonString), printJson)
-import qualified Meta
-import Obj
-import Text.Parsec (ParseError)
-import Types
-
-newtype DocumentSymbol = DocumentSymbol Binder
+import Json (Json (JsonList, JsonMap, JsonNull, JsonNumber, JsonString), JsonNumberKind (JsonNumberInt), ToJson (toJson))
 
 data DiagnosticSeverity
   = Error
@@ -16,16 +8,11 @@ data DiagnosticSeverity
   | Information
   | Hint
 
-instance Show DiagnosticSeverity where
-  show Error = "1"
-  show Warning = "2"
-  show Information = "3"
-  show Hint = "4"
-
-data Tag = Deprecated
-
-instance Show Tag where
-  show Deprecated = "1"
+instance ToJson DiagnosticSeverity where
+  toJson Error = JsonNumber (JsonNumberInt 1)
+  toJson Warning = JsonNumber (JsonNumberInt 2)
+  toJson Information = JsonNumber (JsonNumberInt 3)
+  toJson Hint = JsonNumber (JsonNumberInt 4)
 
 data SymbolKind
   = SymbolKindFile
@@ -94,345 +81,237 @@ data CompletionItemKind
     CompletionItemKindValue
   | CompletionItemKindVariable
 
-newtype CompletionItem = CompletionItem Binder
+-- newtype CompletionItem = CompletionItem Binder
 
-instance Show CompletionItemKind where
-  show CompletionItemKindText = "1"
-  show CompletionItemKindMethod = "2"
-  show CompletionItemKindFunction = "3"
-  show CompletionItemKindConstructor = "4"
-  show CompletionItemKindField = "5"
-  show CompletionItemKindVariable = "6"
-  show CompletionItemKindClass = "7"
-  show CompletionItemKindInterface = "8"
-  show CompletionItemKindModule = "9"
-  show CompletionItemKindProperty = "10"
-  show CompletionItemKindUnit = "11"
-  show CompletionItemKindValue = "12"
-  show CompletionItemKindEnum = "13"
-  show CompletionItemKindKeyword = "14"
-  show CompletionItemKindSnippet = "15"
-  show CompletionItemKindColor = "16"
-  show CompletionItemKindFile = "17"
-  show CompletionItemKindReference = "18"
-  show CompletionItemKindFolder = "19"
-  show CompletionItemKindEnumMember = "20"
-  show CompletionItemKindConstant = "21"
-  show CompletionItemKindStruct = "22"
-  show CompletionItemKindEvent = "23"
-  show CompletionItemKindOperator = "24"
-  show CompletionItemKindTypeParameter = "25"
+instance ToJson CompletionItemKind where
+  toJson CompletionItemKindText = JsonNumber (JsonNumberInt 1)
+  toJson CompletionItemKindMethod = JsonNumber (JsonNumberInt 2)
+  toJson CompletionItemKindFunction = JsonNumber (JsonNumberInt 3)
+  toJson CompletionItemKindConstructor = JsonNumber (JsonNumberInt 4)
+  toJson CompletionItemKindField = JsonNumber (JsonNumberInt 5)
+  toJson CompletionItemKindVariable = JsonNumber (JsonNumberInt 6)
+  toJson CompletionItemKindClass = JsonNumber (JsonNumberInt 7)
+  toJson CompletionItemKindInterface = JsonNumber (JsonNumberInt 8)
+  toJson CompletionItemKindModule = JsonNumber (JsonNumberInt 9)
+  toJson CompletionItemKindProperty = JsonNumber (JsonNumberInt 10)
+  toJson CompletionItemKindUnit = JsonNumber (JsonNumberInt 11)
+  toJson CompletionItemKindValue = JsonNumber (JsonNumberInt 12)
+  toJson CompletionItemKindEnum = JsonNumber (JsonNumberInt 13)
+  toJson CompletionItemKindKeyword = JsonNumber (JsonNumberInt 14)
+  toJson CompletionItemKindSnippet = JsonNumber (JsonNumberInt 15)
+  toJson CompletionItemKindColor = JsonNumber (JsonNumberInt 16)
+  toJson CompletionItemKindFile = JsonNumber (JsonNumberInt 17)
+  toJson CompletionItemKindReference = JsonNumber (JsonNumberInt 18)
+  toJson CompletionItemKindFolder = JsonNumber (JsonNumberInt 19)
+  toJson CompletionItemKindEnumMember = JsonNumber (JsonNumberInt 20)
+  toJson CompletionItemKindConstant = JsonNumber (JsonNumberInt 21)
+  toJson CompletionItemKindStruct = JsonNumber (JsonNumberInt 22)
+  toJson CompletionItemKindEvent = JsonNumber (JsonNumberInt 23)
+  toJson CompletionItemKindOperator = JsonNumber (JsonNumberInt 24)
+  toJson CompletionItemKindTypeParameter = JsonNumber (JsonNumberInt 25)
 
-instance Show SymbolKind where
-  show SymbolKindFile = "1"
-  show SymbolKindModule = "2"
-  show SymbolKindNamespace = "3"
-  show SymbolKindPackage = "4"
-  show SymbolKindClass = "5"
-  show SymbolKindMethod = "6"
-  show SymbolKindProperty = "7"
-  show SymbolKindField = "8"
-  show SymbolKindConstructor = "9"
-  show SymbolKindEnum = "10"
-  show SymbolKindInterface = "11"
-  show SymbolKindFunction = "12"
-  show SymbolKindVariable = "13"
-  show SymbolKindConstant = "14"
-  show SymbolKindString = "15"
-  show SymbolKindNumber = "16"
-  show SymbolKindBoolean = "17"
-  show SymbolKindArray = "18"
-  show SymbolKindObject = "19"
-  show SymbolKindKey = "20"
-  show SymbolKindNull = "21"
-  show SymbolKindEnumMember = "22"
-  show SymbolKindStruct = "23"
-  show SymbolKindEvent = "24"
-  show SymbolKindOperator = "25"
-  show SymbolKindTypeParameter = "26"
+instance ToJson SymbolKind where
+  toJson SymbolKindFile = JsonNumber (JsonNumberInt 1)
+  toJson SymbolKindModule = JsonNumber (JsonNumberInt 2)
+  toJson SymbolKindNamespace = JsonNumber (JsonNumberInt 3)
+  toJson SymbolKindPackage = JsonNumber (JsonNumberInt 4)
+  toJson SymbolKindClass = JsonNumber (JsonNumberInt 5)
+  toJson SymbolKindMethod = JsonNumber (JsonNumberInt 6)
+  toJson SymbolKindProperty = JsonNumber (JsonNumberInt 7)
+  toJson SymbolKindField = JsonNumber (JsonNumberInt 8)
+  toJson SymbolKindConstructor = JsonNumber (JsonNumberInt 9)
+  toJson SymbolKindEnum = JsonNumber (JsonNumberInt 10)
+  toJson SymbolKindInterface = JsonNumber (JsonNumberInt 11)
+  toJson SymbolKindFunction = JsonNumber (JsonNumberInt 12)
+  toJson SymbolKindVariable = JsonNumber (JsonNumberInt 13)
+  toJson SymbolKindConstant = JsonNumber (JsonNumberInt 14)
+  toJson SymbolKindString = JsonNumber (JsonNumberInt 15)
+  toJson SymbolKindNumber = JsonNumber (JsonNumberInt 16)
+  toJson SymbolKindBoolean = JsonNumber (JsonNumberInt 17)
+  toJson SymbolKindArray = JsonNumber (JsonNumberInt 18)
+  toJson SymbolKindObject = JsonNumber (JsonNumberInt 19)
+  toJson SymbolKindKey = JsonNumber (JsonNumberInt 20)
+  toJson SymbolKindNull = JsonNumber (JsonNumberInt 21)
+  toJson SymbolKindEnumMember = JsonNumber (JsonNumberInt 22)
+  toJson SymbolKindStruct = JsonNumber (JsonNumberInt 23)
+  toJson SymbolKindEvent = JsonNumber (JsonNumberInt 24)
+  toJson SymbolKindOperator = JsonNumber (JsonNumberInt 25)
+  toJson SymbolKindTypeParameter = JsonNumber (JsonNumberInt 26)
 
-data Hover = HoverXObj Env XObj
+data Position = Position
+  { positionLine :: Int,
+    positionCharacter :: Int
+  }
 
-newtype Location = Location Binder
+data Range = Range
+  { rangeStart :: Position,
+    rangeEnd :: Position
+  }
 
-documentSymbolToJson :: DocumentSymbol -> Json
-documentSymbolToJson (DocumentSymbol (Binder _ (XObj _ Nothing _))) = JsonNull
-documentSymbolToJson (DocumentSymbol (Binder meta xobj@(XObj obj (Just info) _))) =
-  json
-  where
-    json =
-      JsonMap
-        [ ("name", JsonString name_),
-          ("kind", JsonNumber (show kind)),
-          ("tags", JsonList tags),
-          ("location", location)
-        ]
+data Diagnostic = Diagnostic
+  { diagnosticSeverity :: DiagnosticSeverity,
+    diagnosticMessage :: String,
+    diagnosticRange :: Range,
+    diagnosticCode :: Maybe String
+  }
 
-    tags = case Meta.get "deprecated" meta of
-      Just (XObj (Bol t) _ _) ->
-        [JsonString (show Deprecated) | t]
-      Nothing -> []
-      Just _ -> []
-    name_ = getName xobj
-    location =
-      JsonMap
-        [ ("uri", JsonString uri),
-          ("range", makeRange info)
-        ]
-    uri = uriToString info
-    kind = maybe (objToSymbolKind obj) tyToSymbolKind (xobjTy xobj)
+data PublishDiagnosticsParams = PublishDiagnosticsParams
+  { publishDiagnosticsParamsUri :: String,
+    publishDiagnosticsParamsDiagnostics :: [Diagnostic]
+  }
 
-hoverToJson :: Hover -> Json
-hoverToJson (HoverXObj env xobj) =
-  json
-  where
-    json =
-      JsonMap
-        [ ( "contents",
-            JsonMap
-              [ ("kind", JsonString "markdown"),
-                ( "value",
-                  JsonString
-                    ( "```carp\n"
-                        ++ type_
-                        ++ "\n```"
-                        ++ "\n***\n"
-                        ++ either id id doc
-                    )
-                )
-              ]
+instance ToJson Position where
+  toJson position =
+    JsonMap
+      [ ("line", line),
+        ("character", character)
+      ]
+    where
+      line = toJson (max (positionLine position) 0)
+      character = toJson (max (positionCharacter position) 0)
+
+instance ToJson Range where
+  toJson range =
+    JsonMap
+      [ ("start", start),
+        ("end", end)
+      ]
+    where
+      start = toJson (rangeStart range)
+      end = toJson (rangeEnd range)
+
+instance ToJson Diagnostic where
+  toJson diagnostic =
+    JsonMap
+      [ ("severity", severity),
+        ("message", message),
+        ("range", range),
+        ("code", code),
+        ("source", source)
+      ]
+    where
+      severity = toJson (diagnosticSeverity diagnostic)
+      message = JsonString (diagnosticMessage diagnostic)
+      range = toJson (diagnosticRange diagnostic)
+      code = maybe JsonNull JsonString (diagnosticCode diagnostic)
+      source = JsonString "carp"
+
+instance ToJson PublishDiagnosticsParams where
+  toJson publishDiagnosticsParams =
+    JsonMap
+      [ ("uri", uri),
+        ("diagnostics", diagnostics)
+      ]
+    where
+      uri =
+        JsonString
+          ( publishDiagnosticsParamsUri
+              publishDiagnosticsParams
           )
-        ]
-    symPath = getPath xobj
-    binder = either (const Nothing) Just (searchValueBinder env symPath)
-    fallBackType = maybe "" show (binder >>= xobjTy . binderXObj)
-    type_ = maybe fallBackType show (xobjTy xobj)
-    meta = lookupMeta env symPath
-    doc = case meta of
-      Left _ -> Left ""
-      Right m ->
-        case Meta.get "doc" m of
-          Nothing -> Right ""
-          Just x -> unwrapStringXObj x
-    _name = getName xobj
+      diagnostics =
+        JsonList
+          ( map
+              toJson
+              (publishDiagnosticsParamsDiagnostics publishDiagnosticsParams)
+          )
 
-locationToJson :: Location -> Json
-locationToJson (Location binder) =
-  case xobjInfo (binderXObj binder) of
-    Nothing -> JsonNull
-    Just info ->
-      JsonMap
-        [ ("uri", JsonString (uriToString info)),
-          ("range", makeRange info)
-        ]
+instance Show PublishDiagnosticsParams where
+  show = show . toJson
 
-makeRange :: Info -> Json
-makeRange info =
-  JsonMap [("start", start), ("end", end)]
-  where
-    lineStart = infoLine info
-    columnStart = infoColumn info
-    start =
-      JsonMap
-        [ ("line", JsonNumber (show (lineStart - 1))),
-          ("character", JsonNumber (show (columnStart - 1)))
-        ]
-    end =
-      JsonMap
-        [ ("line", JsonNumber (show (lineStart - 1))),
-          ("character", JsonNumber (show columnStart)) -- TODO: Default to see if it actually works. Figure out how to do this correctly
-        ]
+data MarkupKind = Plaintext | Markdown
 
-rangeFromXobj :: XObj -> Json
-rangeFromXobj xobj =
-  maybe JsonNull makeRange (xobjInfo xobj)
+data MarkupContent = MarkupContent
+  { markupContentKind :: MarkupKind,
+    markupContentValue :: String
+  }
 
-completionItemToJson :: CompletionItem -> Json
-completionItemToJson (CompletionItem binder) =
-  JsonMap
-    [ ("label", JsonString label),
-      ("detail", JsonString detail),
-      ( "documentation",
+data Hover = Hover
+  { hoverContents :: MarkupContent,
+    hoverRange :: Range
+  }
+
+instance Show MarkupKind where
+  show Plaintext =
+    "plaintext"
+  show Markdown =
+    "markdown"
+
+instance ToJson MarkupContent where
+  toJson markupContent =
+    JsonMap
+      [ ("kind", JsonString (show (markupContentKind markupContent))),
+        ("value", JsonString (markupContentValue markupContent))
+      ]
+
+instance ToJson Hover where
+  toJson hover =
+    JsonMap
+      [ ("contents", toJson (hoverContents hover)),
+        ("range", toJson (hoverRange hover))
+      ]
+
+instance Show Hover where
+  show = show . toJson
+
+data SymbolTag = Deprecated
+
+instance Show SymbolTag where
+  show Deprecated = "1"
+
+data Location = Location
+  { locationUri :: String,
+    locationRange :: Range
+  }
+
+data SymbolInformation = SymbolInformation
+  { symbolInformationName :: String,
+    symbolInformationKind :: SymbolKind,
+    symbolInformationTags :: [SymbolTag],
+    symbolInformationLocation :: Location
+  }
+
+instance ToJson Location where
+  toJson location =
+    json
+    where
+      uri = locationUri location
+      range = locationRange location
+      json = JsonMap [("uri", JsonString uri), ("range", toJson range)]
+
+instance ToJson SymbolInformation where
+  toJson symbolInformation =
+    JsonMap
+      [ ("name", name),
+        ("kind", kind),
+        ("tags", tags),
+        ("location", location)
+      ]
+    where
+      name = JsonString (symbolInformationName symbolInformation)
+      kind = toJson (symbolInformationKind symbolInformation)
+      tags =
+        JsonList
+          ( map
+              (JsonString . show)
+              (symbolInformationTags symbolInformation)
+          )
+      uri = locationUri (symbolInformationLocation symbolInformation)
+      range = locationRange (symbolInformationLocation symbolInformation)
+      location =
         JsonMap
-          [ ("kind", JsonString "markdown"),
-            ("value", JsonString documentation)
+          [ ("uri", JsonString uri),
+            ("range", toJson range)
           ]
-      ),
-      ("kind", JsonNumber (show kind))
-    ]
-  where
-    documentation = case Meta.get "doc" (binderMeta binder) of
-      Just (XObj (Str doc) _ _) -> show doc
-      Just _ -> ""
-      Nothing -> ""
-    label = getName (binderXObj binder)
-    detail = maybe "" show (xobjTy (binderXObj binder))
-    kind = getKind binder
 
-uriToString :: Info -> String
-uriToString info = "file://" ++ infoFile info
+data CompletionItem = CompletionItem
+  { completionItemLabel :: String,
+    completionItemKind :: CompletionItemKind,
+    completionItemDetail :: String,
+    completionItemDocumentation :: MarkupContent
+  }
 
-getKind :: Binder -> CompletionItemKind
-getKind binder = completionItemKindFromObj $ xobjObj $ binderXObj binder
-
-completionItemKindFromObj :: Obj -> CompletionItemKind
-completionItemKindFromObj C {} = CompletionItemKindValue
-completionItemKindFromObj Lst {} = CompletionItemKindValue
-completionItemKindFromObj Arr {} = CompletionItemKindValue
-completionItemKindFromObj StaticArr {} = CompletionItemKindValue
-completionItemKindFromObj Dict {} = CompletionItemKindStruct
-completionItemKindFromObj Num {} = CompletionItemKindValue
-completionItemKindFromObj Str {} = CompletionItemKindValue
-completionItemKindFromObj Pattern {} = CompletionItemKindValue
-completionItemKindFromObj Chr {} = CompletionItemKindValue
-completionItemKindFromObj Sym {} = CompletionItemKindVariable
-completionItemKindFromObj MultiSym {} = CompletionItemKindVariable
-completionItemKindFromObj InterfaceSym {} = CompletionItemKindInterface
-completionItemKindFromObj Bol {} = CompletionItemKindValue
-completionItemKindFromObj Defn {} = CompletionItemKindFunction
-completionItemKindFromObj Def = CompletionItemKindVariable
-completionItemKindFromObj Fn {} = CompletionItemKindFunction
-completionItemKindFromObj Closure {} = CompletionItemKindFunction
-completionItemKindFromObj If = CompletionItemKindKeyword
-completionItemKindFromObj Match {} = CompletionItemKindKeyword
-completionItemKindFromObj While = CompletionItemKindKeyword
-completionItemKindFromObj Do = CompletionItemKindKeyword
-completionItemKindFromObj Let = CompletionItemKindKeyword
-completionItemKindFromObj LocalDef = CompletionItemKindKeyword
-completionItemKindFromObj Mod {} = CompletionItemKindModule
-completionItemKindFromObj Deftype {} = CompletionItemKindTypeParameter
-completionItemKindFromObj DefSumtype {} = CompletionItemKindEnum
-completionItemKindFromObj Deftemplate {} = CompletionItemKindFunction
-completionItemKindFromObj Instantiate {} = CompletionItemKindFunction
-completionItemKindFromObj External {} = CompletionItemKindValue
-completionItemKindFromObj ExternalType {} = CompletionItemKindValue
-completionItemKindFromObj MetaStub = CompletionItemKindField
-completionItemKindFromObj (Defalias _) = CompletionItemKindVariable
-completionItemKindFromObj SetBang = CompletionItemKindValue
-completionItemKindFromObj Macro = CompletionItemKindFunction
-completionItemKindFromObj Dynamic = CompletionItemKindFunction
-completionItemKindFromObj DefDynamic = CompletionItemKindFunction
-completionItemKindFromObj (Command _) = CompletionItemKindFunction
-completionItemKindFromObj (Primitive _) = CompletionItemKindValue
-completionItemKindFromObj The = CompletionItemKindKeyword
-completionItemKindFromObj Ref = CompletionItemKindFunction
-completionItemKindFromObj Deref = CompletionItemKindFunction
-completionItemKindFromObj Break = CompletionItemKindKeyword
-completionItemKindFromObj (Interface _ _) = CompletionItemKindInterface
-completionItemKindFromObj With = CompletionItemKindKeyword
-
-objToSymbolKind :: Obj -> SymbolKind
-objToSymbolKind Sym {} = SymbolKindVariable
-objToSymbolKind MultiSym {} = SymbolKindArray
-objToSymbolKind InterfaceSym {} = SymbolKindInterface
-objToSymbolKind Num {} = SymbolKindNumber
-objToSymbolKind Str {} = SymbolKindString
-objToSymbolKind Pattern {} = SymbolKindString
-objToSymbolKind Chr {} = SymbolKindString
-objToSymbolKind Bol {} = SymbolKindBoolean
-objToSymbolKind Lst {} = SymbolKindArray
-objToSymbolKind Arr {} = SymbolKindArray
-objToSymbolKind StaticArr {} = SymbolKindArray
-objToSymbolKind Dict {} = SymbolKindObject
-objToSymbolKind Closure {} = SymbolKindFunction
-objToSymbolKind Defn {} = SymbolKindFunction
-objToSymbolKind Def {} = SymbolKindVariable
-objToSymbolKind Fn {} = SymbolKindFunction
-objToSymbolKind Do {} = SymbolKindKey
-objToSymbolKind Let {} = SymbolKindVariable
-objToSymbolKind LocalDef {} = SymbolKindVariable
-objToSymbolKind While {} = SymbolKindEvent
-objToSymbolKind Break {} = SymbolKindEvent
-objToSymbolKind If {} = SymbolKindEvent
-objToSymbolKind Match {} = SymbolKindEvent
-objToSymbolKind Mod {} = SymbolKindModule
-objToSymbolKind Deftype {} = SymbolKindFile -- TODO
-objToSymbolKind DefSumtype {} = SymbolKindEnum
-objToSymbolKind With {} = SymbolKindEvent
-objToSymbolKind External {} = SymbolKindVariable
-objToSymbolKind ExternalType {} = SymbolKindVariable
-objToSymbolKind MetaStub {} = SymbolKindObject
-objToSymbolKind Deftemplate {} = SymbolKindConstant
-objToSymbolKind Instantiate {} = SymbolKindConstructor
-objToSymbolKind Defalias {} = SymbolKindVariable
-objToSymbolKind SetBang {} = SymbolKindFunction
-objToSymbolKind Macro {} = SymbolKindConstructor
-objToSymbolKind Dynamic {} = SymbolKindVariable
-objToSymbolKind DefDynamic {} = SymbolKindVariable
-objToSymbolKind Command {} = SymbolKindEvent
-objToSymbolKind Primitive {} = SymbolKindVariable
-objToSymbolKind The {} = SymbolKindTypeParameter
-objToSymbolKind Ref {} = SymbolKindVariable
-objToSymbolKind Deref {} = SymbolKindVariable
-objToSymbolKind Interface {} = SymbolKindInterface
-objToSymbolKind C {} = SymbolKindConstant
-
-tyToSymbolKind :: Ty -> SymbolKind
-tyToSymbolKind IntTy {} = SymbolKindNumber
-tyToSymbolKind LongTy {} = SymbolKindNumber
-tyToSymbolKind ByteTy {} = SymbolKindVariable
-tyToSymbolKind BoolTy {} = SymbolKindBoolean
-tyToSymbolKind FloatTy {} = SymbolKindNumber
-tyToSymbolKind DoubleTy {} = SymbolKindNumber
-tyToSymbolKind StringTy {} = SymbolKindString
-tyToSymbolKind PatternTy {} = SymbolKindString -- TODO
-tyToSymbolKind CharTy {} = SymbolKindConstant
-tyToSymbolKind CCharTy {} = SymbolKindConstant
-tyToSymbolKind FuncTy {} = SymbolKindFunction
-tyToSymbolKind VarTy {} = SymbolKindVariable
-tyToSymbolKind UnitTy {} = SymbolKindNull
-tyToSymbolKind ModuleTy {} = SymbolKindModule
-tyToSymbolKind PointerTy {} = SymbolKindConstant -- TODO
-tyToSymbolKind RefTy {} = SymbolKindConstant
-tyToSymbolKind StaticLifetimeTy {} = SymbolKindConstant
-tyToSymbolKind StructTy {} = SymbolKindStruct
-tyToSymbolKind ConcreteNameTy {} = SymbolKindConstant -- TODO
-tyToSymbolKind TypeTy {} = SymbolKindInterface
-tyToSymbolKind MacroTy {} = SymbolKindInterface
-tyToSymbolKind DynamicTy {} = SymbolKindInterface
-tyToSymbolKind InterfaceTy {} = SymbolKindInterface
-tyToSymbolKind CTy {} = SymbolKindInterface
-tyToSymbolKind Universe {} = SymbolKindInterface
-
-printEvalError :: EvalError -> String
-printEvalError (EvalError msg _ _ info) = printErrorDiagnostic msg info
-printEvalError (HasStaticCall _xObj info) = printErrorDiagnostic "HasStaticCall error" info
-
-printParseError :: ParseError -> Maybe Info -> String
-printParseError parseError = printErrorDiagnostic (show parseError)
-
-printErrorDiagnostic :: String -> Maybe Info -> String
-printErrorDiagnostic = printDiagnostic Error
-
-printWarningDiagnostic :: String -> Maybe Info -> String
-printWarningDiagnostic = printDiagnostic Warning
-
-printDiagnostic :: DiagnosticSeverity -> String -> Maybe Info -> String
-printDiagnostic severity message xobj =
-  printJson
-    ( JsonMap
-        [ ("uri", uri),
-          ("diagnostics", diagnostics)
-        ]
-    )
-  where
-    uri =
-      maybe
-        JsonNull
-        (JsonString . uriToString)
-        xobj
-    diagnostics = JsonList [makeDiagnostic severity message xobj]
-
-makeErrorDiagnostic :: String -> Maybe Info -> Json
-makeErrorDiagnostic = makeDiagnostic Error
-
-makeDiagnostic :: DiagnosticSeverity -> String -> Maybe Info -> Json
-makeDiagnostic severity message xobj =
-  JsonMap
-    [ ("message", JsonString message),
-      ("source", JsonString "carp"),
-      ("severity", JsonNumber (show severity)),
-      ("range", range)
-    ]
-  where
-    range = maybe JsonNull makeRange xobj
+instance Show CompletionItem where
+  show _completionItem =
+    show item
+    where
+      item = JsonNull

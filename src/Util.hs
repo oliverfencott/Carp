@@ -143,5 +143,9 @@ stripFileProtocol rawPath =
   if protocol `isPrefixOf` rawPath
     then drop (length protocol) rawPath
     else rawPath
-  where
-    protocol = "file://"
+
+prependFileProtocol :: String -> String
+prependFileProtocol rawPath = protocol ++ rawPath
+
+protocol :: [Char]
+protocol = "file://"

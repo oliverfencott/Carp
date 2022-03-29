@@ -5,7 +5,16 @@
 -- | Defines data, errors, and functions for qualifying symbols in a given
 -- context.
 module Qualify
-  ( QualificationError,
+  ( QualificationError
+      ( FailedToQualifyDeclarationName,
+        FailedToQualifySymbols,
+        FailedToQualifyPath,
+        NonVariableInMatch,
+        NakedInitForUnnamedModule,
+        QualifiedMulti,
+        LocalMulti,
+        FailedToFindSymbol
+      ),
     QualifiedPath,
     Qualified (..),
     qualify,
@@ -23,7 +32,7 @@ import Data.Bifunctor
 import Data.Either (fromRight)
 import qualified Env as E
 import Info
-import Json (Json (JsonList, JsonMap, JsonNull, JsonNumber, JsonString), printJson)
+import Lsp (Diagnostic (Diagnostic), DiagnosticSeverity (Error), PublishDiagnosticsParams (PublishDiagnosticsParams))
 import qualified Map
 import Obj
 import qualified Set
@@ -65,9 +74,14 @@ instance Show QualificationError where
   show (FailedToFindSymbol xobj) =
     "Couldn't find the xobj: " ++ pretty xobj
 
-toLspMessage :: QualificationError -> String
-toLspMessage err =
-  printJson (JsonMap [uri, diagnostics])
+toLspMessage :: QualificationError -> Maybe Info -> String
+toLspMessage err info =
+  show
+    ( PublishDiagnosticsParams
+        uri
+        [ Diagnostic Error (show err) range (Just codeLabel)
+        ]
+    )
   where
     codeLabel = case err of
       FailedToQualifyDeclarationName _ -> "FailedToQualifyDeclarationName"
@@ -78,46 +92,17 @@ toLspMessage err =
       QualifiedMulti _spath -> "QualifiedMulti"
       LocalMulti _spath _binders -> "LocalMulti"
       FailedToFindSymbol _ -> "FailedToFindSymbol"
-    uriValue = case err of
-      FailedToQualifyDeclarationName xobj -> getFile xobj
-      FailedToQualifySymbols xobj -> getFile xobj
-      FailedToQualifyPath _spath -> JsonNull
-      NonVariableInMatch xobj -> getFile xobj
-      NakedInitForUnnamedModule _ -> JsonNull
-      QualifiedMulti _spath -> JsonNull
-      LocalMulti _spath _binders -> JsonNull
-      FailedToFindSymbol xobj -> getFile xobj
-    rangeValue = case err of
-      FailedToQualifyDeclarationName xobj -> xobjToRange xobj
-      FailedToQualifySymbols xobj -> xobjToRange xobj
-      FailedToQualifyPath _spath -> JsonNull
-      NonVariableInMatch xobj -> xobjToRange xobj
-      NakedInitForUnnamedModule _ -> JsonNull
-      QualifiedMulti _spath -> JsonNull
-      LocalMulti _spath _binders -> JsonNull
-      FailedToFindSymbol xobj -> xobjToRange xobj
-    uri = ("uri", uriValue)
-    diagnostics =
-      ( "diagnostics",
-        JsonList
-          [ JsonMap
-              [ severity,
-                message,
-                range,
-                code,
-                source
-              ]
-          ]
-      )
-    message = ("message", JsonString (show err))
-    severity = ("severity", JsonNumber "1")
-    code = ("code", JsonString codeLabel)
-    source = ("source", JsonString "carp")
-    range = ("range", rangeValue)
-    getFile xobj =
-      case xobjInfo xobj of
-        Nothing -> JsonNull
-        Just info -> JsonString (infoFile info)
+    range = case err of
+      FailedToQualifyDeclarationName xobj -> xobjToLspRange xobj
+      FailedToQualifySymbols xobj -> xobjToLspRange xobj
+      FailedToQualifyPath _spath -> infoToLspRange dummyInfo
+      NonVariableInMatch xobj -> xobjToLspRange xobj
+      NakedInitForUnnamedModule _ -> infoToLspRange dummyInfo
+      QualifiedMulti _spath -> infoToLspRange dummyInfo
+      LocalMulti _spath _binders -> infoToLspRange dummyInfo
+      FailedToFindSymbol xobj -> xobjToLspRange xobj
+    uri =
+      maybe "" infoFile info
 
 --------------------------------------------------------------------------------
 -- Data

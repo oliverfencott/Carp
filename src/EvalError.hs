@@ -10,7 +10,9 @@ module EvalError
   )
 where
 
+import Data.Maybe (fromMaybe)
 import Info
+import Lsp (Diagnostic (Diagnostic), DiagnosticSeverity (Error), PublishDiagnosticsParams (PublishDiagnosticsParams))
 import Obj
 import SymPath
 import TypeError
@@ -136,10 +138,71 @@ instance Show EvaluationError where
 --------------------------------------------------------------------------------
 -- Utilities
 
+labelFromEvalError :: EvaluationError -> String
+labelFromEvalError e = case e of
+  SymbolNotFound {} -> "SymbolNotFound"
+  PrivateBinding {} -> "PrivateBinding"
+  -- If
+  IfContainsNonBool {} -> "IfContainsNonBool"
+  IfMalformed {} -> "IfMalformed"
+  -- Defn
+  DefnContainsQualifiedArgs {} -> "DefnContainsQualifiedArgs"
+  DefnIdentifierIsQualified {} -> "DefnIdentifierIsQualified"
+  DefnMalformed {} -> "DefnMalformed"
+  -- Def
+  DefIdentifierIsQualified {} -> "DefIdentifierIsQualified"
+  -- The
+  TheMalformed {} -> "TheMalformed"
+  -- Let
+  LetUnevenForms {} -> "LetUnevenForms"
+  LetMalformedIdentifiers {} -> "LetMalformedIdentifiers"
+  -- Fn
+  FnContainsQualifiedArgs {} -> "FnContainsQualifiedArgs"
+  -- Do
+  DoMissingForms {} -> "DoMissingForms"
+  -- Unknown Form
+  UnknownForm {} -> "UnknownForm"
+  -- Function/Macro Application
+  MacroBadArgumentSplit {} -> "MacroBadArgumentSplit"
+  -- While
+  WhileContainsNonBool {} -> "WhileContainsNonBool"
+  -- Defmodule
+  ModuleRedefinition {} -> "ModuleRedefinition"
+  DefmoduleContainsNonSymbol {} -> "DefmoduleContainsNonSymbol"
+  DefmoduleNoArgs {} -> "DefmoduleNoArgs"
+  LoadFileNotFound {} -> "LoadFileNotFound"
+  LoadGitFailure {} -> "LoadGitFailure"
+  LoadRecursiveLoad {} -> "LoadRecursiveLoad"
+  -- Defndynamic
+  DefnDynamicInvalidName {} -> "DefnDynamicInvalidName"
+  -- Set!
+  SetVarNotFound {} -> "SetVarNotFound"
+  SetInvalidVarName {} -> "SetInvalidVarName"
+  SetTypeMismatch {} -> "SetTypeMismatch"
+  -- Static Call
+  StaticCall {} -> "StaticCall"
+  -- Invalid Arguments
+  InvalidArgs {} -> "InvalidArgs"
+
 -- | Given a Showable error, turn it into an EvalError
 -- TODO: Unify this and toEvalError and remove one of these functions.
-throwErr :: Show a => a -> Context -> Maybe Info -> (Context, Either EvalError XObj)
-throwErr err ctx = evalError ctx (show err)
+throwErr :: EvaluationError -> Context -> Maybe Info -> (Context, Either EvalError XObj)
+throwErr err ctx i =
+  case contextExecMode ctx of
+    Analysis ->
+      evalError ctx e i
+      where
+        codeLabel = labelFromEvalError err
+        info = fromMaybe dummyInfo i
+        uri = infoFile info
+        e =
+          show
+            ( PublishDiagnosticsParams
+                uri
+                [ Diagnostic Error (show err) (infoToLspRange info) (Just codeLabel)
+                ]
+            )
+    _ -> evalError ctx (show err) i
 
 --------------------------------------------------------------------------------
 -- Invalid Argument Helpers

@@ -38,7 +38,6 @@ module Forms
 where
 
 import Data.List (intercalate)
-import Lsp (printErrorDiagnostic)
 import Obj
 import SymPath
 import Types
@@ -219,6 +218,10 @@ format executionMode e = case executionMode of
       InvalidApplication x -> Just x
       DoMissingForms -> Nothing
     _info = xobj >>= xobjInfo
+
+printErrorDiagnostic :: p1 -> p2 -> [Char]
+printErrorDiagnostic _msg _info =
+  ""
 
 --------------------------------------------------------------------------------
 -- Validation functions

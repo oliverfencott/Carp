@@ -21,7 +21,8 @@ import Expand
 import Forms
 import Infer
 import Info
-import Lsp (printEvalError, printParseError)
+import Lsp (PublishDiagnosticsParams (PublishDiagnosticsParams))
+import qualified Lsp
 import qualified Map
 import qualified Meta
 import Obj
@@ -543,13 +544,22 @@ executeStringAtLine line doCatch printResult ctx input fileName =
     interactiveFolder (_, context) =
       executeCommand context
     formatParseError e = replaceChars (Map.fromList [('\n', " ")]) (show e)
+    printErr :: Context -> Parsec.ParseError -> XObj -> IO b
     printErr ctx' e xobj = do
       let fppl = projectFilePathPrintLength (contextProj ctx')
+          message = formatParseError e
       case contextExecMode ctx' of
-        Check -> putStrLn (machineReadableInfoFromXObj fppl xobj ++ " " ++ formatParseError e)
-        Analysis -> putStrLn (printParseError e (xobjInfo xobj))
-        _ -> emitErrorWithLabel "PARSE ERROR" (formatParseError e)
+        Check -> putStrLn (machineReadableInfoFromXObj fppl xobj ++ " " ++ message)
+        Analysis -> putStrLn (printLspError message (xobjInfo xobj))
+        _ -> emitErrorWithLabel "PARSE ERROR" message
       throw CancelEvaluationException
+
+printLspError :: String -> Maybe Info -> String
+printLspError err info =
+  show (PublishDiagnosticsParams uri [diagnostic])
+  where
+    uri = maybeInfoToFileUri info
+    diagnostic = Lsp.Diagnostic Lsp.Error err (maybeInfoToLspRange info) Nothing
 
 -- | Used by functions that has a series of forms to evaluate and need to fold over them (producing a new Context in the end)
 folder :: Context -> XObj -> IO Context
@@ -618,13 +628,9 @@ reportExecutionError ctx errorMessage =
     -- NOTE: This is kind of rubbish but assume that the string is already
     -- an lsp error ready for printing
     (Analysis, EvalError msg _ _ _info) ->
-      do
-        putStrLn "Eval.hs 620"
-        putStrLn msg
-    (Analysis, HasStaticCall _xobj _info) ->
-      do
-        putStrLn "Fix Eval.hs ln 624"
-        putStrLn (printEvalError errorMessage)
+      putStrLn msg
+    (Analysis, HasStaticCall xobj info) ->
+      putStrLn (printLspError ("Expression " ++ pretty xobj ++ " has unexpected static call") info)
     _ ->
       do
         emitErrorBare (show errorMessage)
@@ -723,12 +729,13 @@ annotateWithinContext ctx xobj = do
         Left err -> pure (ctx, Left err)
         Right expanded ->
           let xobjFullSymbols = qualify ctx expanded
+              maybeInfo = xobjInfo xobj
            in case xobjFullSymbols of
                 Left err ->
                   case contextExecMode ctx of
-                    Check -> pure (evalError ctx (show err) (xobjInfo xobj))
-                    Analysis -> pure (evalError ctx (toLspMessage err) (xobjInfo xobj))
-                    _ -> pure (evalError ctx (show err) (xobjInfo xobj))
+                    Check -> pure (evalError ctx (show err) maybeInfo)
+                    Analysis -> pure (evalError ctx (toLspMessage err maybeInfo) maybeInfo)
+                    _ -> pure (evalError ctx (show err) maybeInfo)
                 Right xs ->
                   case annotate typeEnv globalEnv xs okSig of
                     Left err ->
@@ -736,7 +743,7 @@ annotateWithinContext ctx xobj = do
                       case contextExecMode ctx of
                         Check -> pure (evalError ctx (joinLines (machineReadableErrorStrings fppl err)) Nothing)
                         Analysis -> pure (evalError ctx (lspErrorString err) Nothing)
-                        _ -> pure (evalError ctx (show err) (xobjInfo xobj))
+                        _ -> pure (evalError ctx (show err) maybeInfo)
                     Right ok -> pure (ctx, Right ok)
 
 primitiveDefmodule :: VariadicPrimitiveCallback
