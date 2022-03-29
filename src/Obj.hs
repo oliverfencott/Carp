@@ -1262,3 +1262,7 @@ toLspCompletionItemKind Deref = CompletionItemKindFunction
 toLspCompletionItemKind Break = CompletionItemKindKeyword
 toLspCompletionItemKind (Interface _ _) = CompletionItemKindInterface
 toLspCompletionItemKind With = CompletionItemKindKeyword
+
+xobjToLspRange :: XObj -> Range
+xobjToLspRange xobj =
+  infoToLspRange (fromMaybe dummyInfo (xobjInfo xobj))
