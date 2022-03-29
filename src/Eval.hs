@@ -2,7 +2,7 @@
 
 module Eval where
 
-import Analysis (debugAllSymbolsInFile, definitionLocation, textDocumentCompletion, textDocumentDocumentSymbol, textHover)
+import Analysis (debugAllBindersInFile, debugAllSymbolsInFile, definitionLocation, textDocumentCompletion, textDocumentDocumentSymbol, textHover)
 import ColorText
 import Commands
 import Context
@@ -1147,6 +1147,29 @@ commandValidate ctx filePathObj =
         ( evalError
             ctx
             "'validate' argument must be a string (filepath)"
+            Nothing
+        )
+
+commandDebugAllBinders :: UnaryCommandCallback
+commandDebugAllBinders ctx filePathObj =
+  case filePathObj of
+    (XObj (Str rawPath) info _) ->
+      loadInternal ctx filePathObj filePath info Nothing DoesReload
+        >>= ( \(updatedCtx, response) ->
+                case response of
+                  Left _ -> pure (ctx, dynamicNil)
+                  Right _ ->
+                    do
+                      debugAllBindersInFile updatedCtx filePath
+                      pure (ctx, dynamicNil)
+            )
+      where
+        filePath = stripFileProtocol rawPath
+    _ ->
+      pure
+        ( evalError
+            ctx
+            "'print-binders' argument must be a string (filepath)"
             Nothing
         )
 

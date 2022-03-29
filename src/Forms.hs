@@ -198,9 +198,7 @@ formatModifier m = "\n  - " ++ show m
 format :: ExecutionMode -> Malformed -> String
 format executionMode e = case executionMode of
   Analysis ->
-    -- printJson (makeErrorDiagnostic (show e) _info)
     printErrorDiagnostic (show e) _info
-  -- show e
   _ -> "[ERROR] " ++ show e
   where
     xobj = case e of
@@ -221,7 +219,7 @@ format executionMode e = case executionMode of
 
 printErrorDiagnostic :: p1 -> p2 -> [Char]
 printErrorDiagnostic _msg _info =
-  ""
+  "'printErrorDiagnostic' Forms.hs 222"
 
 --------------------------------------------------------------------------------
 -- Validation functions

@@ -11,7 +11,7 @@ import Data.Either
 import Data.Function ((&))
 import Data.List (find, sortBy)
 import Data.Maybe (fromMaybe)
-import Env (findAllNestedBinders, findAllXObjsInFile, lookupMeta, searchValueBinder)
+import Env (EnvironmentError, findAllNestedBinders, findAllXObjsInFile, lookupMeta, searchValueBinder)
 import Info
 import Json (Json (JsonList, JsonMap, JsonNull, JsonString), ToJson (toJson))
 import Lsp (SymbolTag (Deprecated))
@@ -20,11 +20,10 @@ import Map (assocs)
 import qualified Meta
 import Obj
   ( Binder (Binder, binderMeta, binderXObj),
-    Context (contextGlobalEnv, contextTypeEnv),
+    Context (contextGlobalEnv),
     Env,
     MetaData (getMeta),
-    Obj (Bol, Str),
-    TypeEnv (getTypeEnv),
+    Obj (Bol, Mod, Str),
     XObj (XObj, xobjInfo, xobjObj, xobjTy),
     getName,
     getPath,
@@ -34,6 +33,7 @@ import Obj
     toLspCompletionItemKind,
     unwrapStringXObj,
   )
+import SymPath (SymPath)
 import Types (tyToLspSymbolKind)
 import Util (joinLines, stripFileProtocol)
 import Prelude hiding (abs)
@@ -154,85 +154,6 @@ hoverToJson env xobj =
 fileFromBinder :: Binder -> String
 fileFromBinder binder = maybe "" infoFile (xobjInfo (binderXObj binder))
 
-debugAllSymbolsInFile :: Context -> String -> IO ()
-debugAllSymbolsInFile ctx rawPath =
-  do
-    putStrLn rawPath
-    putStrLn filePath
-    print (getTypeEnv (contextTypeEnv ctx))
-    mapM_
-      ( \binder ->
-          let xobj = binderXObj binder
-              symPath = getPath xobj
-              meta = lookupMeta env symPath
-              docLookup = case meta of
-                Left _ -> Left ""
-                Right m ->
-                  case Meta.get "doc" m of
-                    Nothing -> Right ""
-                    Just x -> unwrapStringXObj x
-              doc = either id id docLookup
-              allMeta =
-                either
-                  (const [])
-                  ( joinLines
-                      . map
-                        (\(k, v) -> k ++ ": " ++ pretty v)
-                      . assocs
-                      . getMeta
-                  )
-                  meta
-           in do
-                putStrLn ("Name: " ++ getName xobj)
-                unless (null doc) (putStrLn ("Doc: " ++ doc))
-                unless (null allMeta) (putStrLn ("All meta: " ++ allMeta))
-                putStrLn
-                  ( maybe
-                      ""
-                      ( \info ->
-                          "line: " ++ show (infoLine info) ++ ", column: " ++ show (infoColumn info)
-                      )
-                      (xobjInfo xobj)
-                  )
-                putStrLn (maybe "" (\ty -> "Type: " ++ show ty) (xobjTy xobj))
-                print (pretty xobj)
-                case xobjInfo xobj of
-                  Nothing -> pure ()
-                  Just t -> print t
-                putStrLn "\n"
-      )
-      (binders ++ typeEnvBinders)
-  where
-    filePath = stripFileProtocol rawPath
-    env = contextGlobalEnv ctx
-    valueBinders = findAllNestedBinders env
-    allBinders = valueBinders
-    typeEnvBinders = findAllNestedBinders (getTypeEnv (contextTypeEnv ctx))
-
-    -- NOTE: This isn't needed. Just for debugging
-    sort :: Binder -> Binder -> Ordering
-    sort a b
-      | lineA < lineB = LT
-      | lineA > lineB = GT
-      | otherwise = if columnA < columnB then LT else if columnA > columnB then GT else EQ
-      where
-        aInfo = xobjInfo (binderXObj a)
-        bInfo = xobjInfo (binderXObj b)
-        lineA = maybe 0 infoLine aInfo
-        lineB = maybe 0 infoLine bInfo
-        columnA = maybe 0 infoColumn aInfo
-        columnB = maybe 0 infoColumn bInfo
-
-    binders =
-      allBinders
-        & filter
-          ( \binder ->
-              case xobjInfo (binderXObj binder) of
-                Nothing -> False
-                Just info -> infoFile info == filePath
-          )
-        & sortBy sort
-
 definitionLocation :: Context -> String -> Int -> Int -> IO ()
 definitionLocation ctx rawPath line column =
   case maybeInfo of
@@ -276,3 +197,159 @@ findObjAtColumn col xObjList =
     else case xobjAtColumn col xObjList of
       Nothing -> findObjAtColumn (col - 1) xObjList
       res -> res
+
+debugAllBindersInFile :: Context -> String -> IO ()
+debugAllBindersInFile ctx rawPath =
+  do
+    mapM_
+      ( \binder ->
+          let xobj = binderXObj binder
+              symPath = getPath xobj
+              meta = case binder of
+                Binder m (XObj (Mod _ _) _ _) -> Right m
+                _ -> lookupMeta env symPath
+              docLookup = case meta of
+                Left _ -> Left ""
+                Right m ->
+                  case Meta.get "doc" m of
+                    Nothing -> Right ""
+                    Just x -> unwrapStringXObj x
+              doc = either id id docLookup
+              allMeta =
+                either
+                  (const [])
+                  ( joinLines
+                      . map
+                        (\(k, v) -> k ++ ": " ++ pretty v)
+                      . assocs
+                      . getMeta
+                  )
+                  meta
+           in do
+                putStrLn ("Name: " ++ getName xobj)
+                maybe
+                  (pure ())
+                  ( \info ->
+                      do
+                        putStrLn ("Line: " ++ show (infoLine info))
+                        putStrLn ("Column: " ++ show (infoColumn info))
+                  )
+                  (xobjInfo xobj)
+                unless (null doc) (putStrLn ("Doc: " ++ doc))
+                unless (null allMeta) (putStrLn ("All meta: " ++ allMeta))
+                putStr (maybe "" (\ty -> "Type: " ++ show ty ++ "\n") (xobjTy xobj))
+                print (pretty xobj)
+                case xobjInfo xobj of
+                  Nothing -> pure ()
+                  Just t -> print t
+                putStrLn "\n"
+      )
+      binders
+  where
+    filePath = stripFileProtocol rawPath
+    env = contextGlobalEnv ctx
+    valueBinders = findAllNestedBinders env
+    allBinders = valueBinders
+
+    -- NOTE: This isn't needed. Just for debugging
+    sort :: Binder -> Binder -> Ordering
+    sort a b
+      | lineA < lineB = LT
+      | lineA > lineB = GT
+      | otherwise = if columnA < columnB then LT else if columnA > columnB then GT else EQ
+      where
+        aInfo = xobjInfo (binderXObj a)
+        bInfo = xobjInfo (binderXObj b)
+        lineA = maybe 0 infoLine aInfo
+        lineB = maybe 0 infoLine bInfo
+        columnA = maybe 0 infoColumn aInfo
+        columnB = maybe 0 infoColumn bInfo
+
+    binders =
+      allBinders
+        & filter
+          ( \binder ->
+              case xobjInfo (binderXObj binder) of
+                Nothing -> False
+                Just info -> infoFile info == filePath
+          )
+        & sortBy sort
+
+debugAllSymbolsInFile :: Context -> String -> IO ()
+debugAllSymbolsInFile ctx rawPath =
+  do
+    mapM_
+      ( \xobj ->
+          let symPath = getPath xobj
+              meta = lookupMeta env symPath
+              docLookup = case meta of
+                Left _ -> Left ""
+                Right m ->
+                  case Meta.get "doc" m of
+                    Nothing -> Right ""
+                    Just x -> unwrapStringXObj x
+              doc = either id id docLookup
+              allMeta =
+                either
+                  (const [])
+                  ( joinLines
+                      . map
+                        (\(k, v) -> k ++ ": " ++ pretty v)
+                      . assocs
+                      . getMeta
+                  )
+                  meta
+           in do
+                putStrLn ("Name: " ++ getName xobj)
+                unless (null doc) (putStrLn ("Doc: " ++ doc))
+                unless (null allMeta) (putStrLn ("All meta: " ++ allMeta))
+                putStrLn
+                  ( maybe
+                      ""
+                      ( \info ->
+                          "line: " ++ show (infoLine info) ++ ", column: " ++ show (infoColumn info)
+                      )
+                      (xobjInfo xobj)
+                  )
+                putStrLn (maybe "" (\ty -> "Type: " ++ show ty) (xobjTy xobj))
+                print (pretty xobj)
+                case xobjInfo xobj of
+                  Nothing -> pure ()
+                  Just t -> print t
+                putStrLn "\n"
+      )
+      xobjs
+  where
+    filePath = stripFileProtocol rawPath
+    env = contextGlobalEnv ctx
+    valueBinders = findAllXObjsInFile env filePath
+    allBinders = valueBinders
+
+    -- NOTE: This isn't needed. Just for debugging
+    sort :: XObj -> XObj -> Ordering
+    sort a b
+      | lineA < lineB = LT
+      | lineA > lineB = GT
+      | otherwise = if columnA < columnB then LT else if columnA > columnB then GT else EQ
+      where
+        aInfo = xobjInfo a
+        bInfo = xobjInfo b
+        lineA = maybe 0 infoLine aInfo
+        lineB = maybe 0 infoLine bInfo
+        columnA = maybe 0 infoColumn aInfo
+        columnB = maybe 0 infoColumn bInfo
+
+    xobjs =
+      allBinders
+        & filter
+          ( \xobj ->
+              case xobjInfo xobj of
+                Nothing -> False
+                Just info -> infoFile info == filePath
+          )
+        & sortBy sort
+
+metaFromBinder :: Env -> SymPath -> Binder -> Either EnvironmentError MetaData
+metaFromBinder env symPath binder = case binder of
+  Binder m (XObj (Mod _ _) _ _) -> Right m
+  _ -> lookupMeta env symPath

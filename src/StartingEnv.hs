@@ -388,7 +388,8 @@ dynamicAnalysisModule =
        in [ f "text-document/document-symbol" commandTextDocumentDocumentSymbol "outputs JSON of the available symbols in a document" "(text-document/document-symbol \"my-file.carp\")",
             f "text-document/completion" commandTextDocumentCompletion "outputs JSON of the available symbols in a document" "(text-document/completion \"my-file.carp\")",
             f "validate" commandValidate "looks for any errors in the document" "(validate \"my-file.carp\")",
-            f "debug-all" commandDebugAllSymbols "prints all symbols in a file" "(debug-all \"my-file.carp\")"
+            f "print-binders" commandDebugAllBinders "prints all binders in a file" "(print-binders \"my-file.carp\")",
+            f "print-symbols" commandDebugAllSymbols "prints all binders in a file" "(print-symbols \"my-file.carp\")"
           ]
 
     ternaries =
