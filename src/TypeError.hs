@@ -4,7 +4,7 @@ import Constraints
 import Data.List (nub)
 import Data.Maybe (fromMaybe)
 import Info
-import Lsp (Diagnostic (Diagnostic), DiagnosticSeverity (Error), PublishDiagnosticsParams (PublishDiagnosticsParams))
+import LanguageServer (makeErrorDiagnosticWithLabel)
 import qualified Map
 import Obj
 import Project
@@ -503,7 +503,7 @@ labelFromTypeError err = case err of
 
 lspErrorString :: TypeError -> String
 lspErrorString err =
-  publishDiagnosticsParams
+  show diagnostics
   where
     msg = case err of
       (UnificationFailed (Constraint _ b aObj _ _ _) mappings _) ->
@@ -619,19 +619,8 @@ lspErrorString err =
 
     xObj = maybeXObjFromTypeError err
     maybeInfo = xobjInfo =<< xObj
-    info = fromMaybe dummyInfo maybeInfo
     codeLabel = labelFromTypeError err
-    publishDiagnosticsParams =
-      show
-        ( PublishDiagnosticsParams
-            (infoFile info)
-            [ Diagnostic
-                Error
-                msg
-                (infoToLspRange info)
-                (Just codeLabel)
-            ]
-        )
+    diagnostics = makeErrorDiagnosticWithLabel msg maybeInfo codeLabel
 
 joinedMachineReadableErrorStrings :: FilePathPrintLength -> TypeError -> String
 joinedMachineReadableErrorStrings fppl err = joinWith "\n\n" (machineReadableErrorStrings fppl err)

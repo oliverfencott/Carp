@@ -23,7 +23,7 @@ module Qualify
     markQualified,
     qualifyNull,
     getQualifiedPath,
-    toLspMessage,
+    showLabel,
   )
 where
 
@@ -32,7 +32,6 @@ import Data.Bifunctor
 import Data.Either (fromRight)
 import qualified Env as E
 import Info
-import Lsp (Diagnostic (Diagnostic), DiagnosticSeverity (Error), PublishDiagnosticsParams (PublishDiagnosticsParams))
 import qualified Map
 import Obj
 import qualified Set
@@ -74,35 +73,16 @@ instance Show QualificationError where
   show (FailedToFindSymbol xobj) =
     "Couldn't find the xobj: " ++ pretty xobj
 
-toLspMessage :: QualificationError -> Maybe Info -> String
-toLspMessage err info =
-  show
-    ( PublishDiagnosticsParams
-        uri
-        [ Diagnostic Error (show err) range (Just codeLabel)
-        ]
-    )
-  where
-    codeLabel = case err of
-      FailedToQualifyDeclarationName _ -> "FailedToQualifyDeclarationName"
-      FailedToQualifySymbols _ -> "FailedToQualifySymbols"
-      FailedToQualifyPath _spath -> "FailedToQualifyPath"
-      NonVariableInMatch _ -> "NonVariableInMatch"
-      NakedInitForUnnamedModule _ -> "NakedInitForUnnamedModule"
-      QualifiedMulti _spath -> "QualifiedMulti"
-      LocalMulti _spath _binders -> "LocalMulti"
-      FailedToFindSymbol _ -> "FailedToFindSymbol"
-    range = case err of
-      FailedToQualifyDeclarationName xobj -> xobjToLspRange xobj
-      FailedToQualifySymbols xobj -> xobjToLspRange xobj
-      FailedToQualifyPath _spath -> infoToLspRange dummyInfo
-      NonVariableInMatch xobj -> xobjToLspRange xobj
-      NakedInitForUnnamedModule _ -> infoToLspRange dummyInfo
-      QualifiedMulti _spath -> infoToLspRange dummyInfo
-      LocalMulti _spath _binders -> infoToLspRange dummyInfo
-      FailedToFindSymbol xobj -> xobjToLspRange xobj
-    uri =
-      maybe "" infoFile info
+showLabel :: QualificationError -> String
+showLabel err = case err of
+  FailedToQualifyDeclarationName _ -> "FailedToQualifyDeclarationName"
+  FailedToQualifySymbols _ -> "FailedToQualifySymbols"
+  FailedToQualifyPath _spath -> "FailedToQualifyPath"
+  NonVariableInMatch _ -> "NonVariableInMatch"
+  NakedInitForUnnamedModule _ -> "NakedInitForUnnamedModule"
+  QualifiedMulti _spath -> "QualifiedMulti"
+  LocalMulti _spath _binders -> "LocalMulti"
+  FailedToFindSymbol _ -> "FailedToFindSymbol"
 
 --------------------------------------------------------------------------------
 -- Data

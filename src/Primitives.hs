@@ -19,8 +19,7 @@ import Env (addUsePath, contextEnv, insert, lookupBinderEverywhere, lookupEveryw
 import Infer
 import Info
 import Interfaces
-import Lsp (Diagnostic (Diagnostic))
-import qualified Lsp
+import qualified LanguageServer
 import Managed
 import qualified Map
 import qualified Meta
@@ -250,12 +249,7 @@ printErrorDiagnostic _e _info = "PRIMITIVES.HS 247"
 
 printWarning :: ExecutionMode -> Maybe XObj -> String -> IO ()
 printWarning Analysis xobj warning =
-  print diagnostics
-  where
-    info = xobj >>= xobjInfo
-    uri = maybeInfoToFileUri info
-    diagnostic = Diagnostic Lsp.Warning warning (maybeInfoToLspRange info) Nothing
-    diagnostics = Lsp.PublishDiagnosticsParams uri [diagnostic]
+  print (LanguageServer.makeWarningDiagnostic xobj warning)
 printWarning _ _ warning = emitWarning warning
 
 primitiveRegisterType :: VariadicPrimitiveCallback

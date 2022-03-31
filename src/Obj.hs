@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Obj where
@@ -12,7 +11,6 @@ import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Info
-import Lsp
 import qualified Map
 import Project
 import qualified Set
@@ -1171,98 +1169,98 @@ walk f (XObj (Arr xs) i t) = XObj (Arr (map (walk f) xs)) i t
 walk f (XObj (Lst xs) i t) = XObj (Lst (map (walk f) xs)) i t
 walk f x = f x
 
-objToLspSymbolKind :: Obj -> SymbolKind
-objToLspSymbolKind Sym {} = SymbolKindVariable
-objToLspSymbolKind MultiSym {} = SymbolKindArray
-objToLspSymbolKind InterfaceSym {} = SymbolKindInterface
-objToLspSymbolKind Num {} = SymbolKindNumber
-objToLspSymbolKind Str {} = SymbolKindString
-objToLspSymbolKind Pattern {} = SymbolKindString
-objToLspSymbolKind Chr {} = SymbolKindString
-objToLspSymbolKind Bol {} = SymbolKindBoolean
-objToLspSymbolKind Lst {} = SymbolKindArray
-objToLspSymbolKind Arr {} = SymbolKindArray
-objToLspSymbolKind StaticArr {} = SymbolKindArray
-objToLspSymbolKind Dict {} = SymbolKindObject
-objToLspSymbolKind Closure {} = SymbolKindFunction
-objToLspSymbolKind Defn {} = SymbolKindFunction
-objToLspSymbolKind Def {} = SymbolKindVariable
-objToLspSymbolKind Fn {} = SymbolKindFunction
-objToLspSymbolKind Do {} = SymbolKindKey
-objToLspSymbolKind Let {} = SymbolKindVariable
-objToLspSymbolKind LocalDef {} = SymbolKindVariable
-objToLspSymbolKind While {} = SymbolKindEvent
-objToLspSymbolKind Break {} = SymbolKindEvent
-objToLspSymbolKind If {} = SymbolKindEvent
-objToLspSymbolKind Match {} = SymbolKindEvent
-objToLspSymbolKind Mod {} = SymbolKindModule
-objToLspSymbolKind Deftype {} = SymbolKindFile -- TODO
-objToLspSymbolKind DefSumtype {} = SymbolKindEnum
-objToLspSymbolKind With {} = SymbolKindEvent
-objToLspSymbolKind External {} = SymbolKindVariable
-objToLspSymbolKind ExternalType {} = SymbolKindVariable
-objToLspSymbolKind MetaStub {} = SymbolKindObject
-objToLspSymbolKind Deftemplate {} = SymbolKindConstant
-objToLspSymbolKind Instantiate {} = SymbolKindConstructor
-objToLspSymbolKind Defalias {} = SymbolKindVariable
-objToLspSymbolKind SetBang {} = SymbolKindFunction
-objToLspSymbolKind Macro {} = SymbolKindConstructor
-objToLspSymbolKind Dynamic {} = SymbolKindVariable
-objToLspSymbolKind DefDynamic {} = SymbolKindVariable
-objToLspSymbolKind Command {} = SymbolKindEvent
-objToLspSymbolKind Primitive {} = SymbolKindVariable
-objToLspSymbolKind The {} = SymbolKindTypeParameter
-objToLspSymbolKind Ref {} = SymbolKindVariable
-objToLspSymbolKind Deref {} = SymbolKindVariable
-objToLspSymbolKind Interface {} = SymbolKindInterface
-objToLspSymbolKind C {} = SymbolKindConstant
+-- objToLspSymbolKind :: Obj -> SymbolKind
+-- objToLspSymbolKind Sym {} = SymbolKindVariable
+-- objToLspSymbolKind MultiSym {} = SymbolKindArray
+-- objToLspSymbolKind InterfaceSym {} = SymbolKindInterface
+-- objToLspSymbolKind Num {} = SymbolKindNumber
+-- objToLspSymbolKind Str {} = SymbolKindString
+-- objToLspSymbolKind Pattern {} = SymbolKindString
+-- objToLspSymbolKind Chr {} = SymbolKindString
+-- objToLspSymbolKind Bol {} = SymbolKindBoolean
+-- objToLspSymbolKind Lst {} = SymbolKindArray
+-- objToLspSymbolKind Arr {} = SymbolKindArray
+-- objToLspSymbolKind StaticArr {} = SymbolKindArray
+-- objToLspSymbolKind Dict {} = SymbolKindObject
+-- objToLspSymbolKind Closure {} = SymbolKindFunction
+-- objToLspSymbolKind Defn {} = SymbolKindFunction
+-- objToLspSymbolKind Def {} = SymbolKindVariable
+-- objToLspSymbolKind Fn {} = SymbolKindFunction
+-- objToLspSymbolKind Do {} = SymbolKindKey
+-- objToLspSymbolKind Let {} = SymbolKindVariable
+-- objToLspSymbolKind LocalDef {} = SymbolKindVariable
+-- objToLspSymbolKind While {} = SymbolKindEvent
+-- objToLspSymbolKind Break {} = SymbolKindEvent
+-- objToLspSymbolKind If {} = SymbolKindEvent
+-- objToLspSymbolKind Match {} = SymbolKindEvent
+-- objToLspSymbolKind Mod {} = SymbolKindModule
+-- objToLspSymbolKind Deftype {} = SymbolKindFile -- TODO
+-- objToLspSymbolKind DefSumtype {} = SymbolKindEnum
+-- objToLspSymbolKind With {} = SymbolKindEvent
+-- objToLspSymbolKind External {} = SymbolKindVariable
+-- objToLspSymbolKind ExternalType {} = SymbolKindVariable
+-- objToLspSymbolKind MetaStub {} = SymbolKindObject
+-- objToLspSymbolKind Deftemplate {} = SymbolKindConstant
+-- objToLspSymbolKind Instantiate {} = SymbolKindConstructor
+-- objToLspSymbolKind Defalias {} = SymbolKindVariable
+-- objToLspSymbolKind SetBang {} = SymbolKindFunction
+-- objToLspSymbolKind Macro {} = SymbolKindConstructor
+-- objToLspSymbolKind Dynamic {} = SymbolKindVariable
+-- objToLspSymbolKind DefDynamic {} = SymbolKindVariable
+-- objToLspSymbolKind Command {} = SymbolKindEvent
+-- objToLspSymbolKind Primitive {} = SymbolKindVariable
+-- objToLspSymbolKind The {} = SymbolKindTypeParameter
+-- objToLspSymbolKind Ref {} = SymbolKindVariable
+-- objToLspSymbolKind Deref {} = SymbolKindVariable
+-- objToLspSymbolKind Interface {} = SymbolKindInterface
+-- objToLspSymbolKind C {} = SymbolKindConstant
 
-toLspCompletionItemKind :: Obj -> CompletionItemKind
-toLspCompletionItemKind C {} = CompletionItemKindValue
-toLspCompletionItemKind Lst {} = CompletionItemKindValue
-toLspCompletionItemKind Arr {} = CompletionItemKindValue
-toLspCompletionItemKind StaticArr {} = CompletionItemKindValue
-toLspCompletionItemKind Dict {} = CompletionItemKindStruct
-toLspCompletionItemKind Num {} = CompletionItemKindValue
-toLspCompletionItemKind Str {} = CompletionItemKindValue
-toLspCompletionItemKind Pattern {} = CompletionItemKindValue
-toLspCompletionItemKind Chr {} = CompletionItemKindValue
-toLspCompletionItemKind Sym {} = CompletionItemKindVariable
-toLspCompletionItemKind MultiSym {} = CompletionItemKindVariable
-toLspCompletionItemKind InterfaceSym {} = CompletionItemKindInterface
-toLspCompletionItemKind Bol {} = CompletionItemKindValue
-toLspCompletionItemKind Defn {} = CompletionItemKindFunction
-toLspCompletionItemKind Def = CompletionItemKindVariable
-toLspCompletionItemKind Fn {} = CompletionItemKindFunction
-toLspCompletionItemKind Closure {} = CompletionItemKindFunction
-toLspCompletionItemKind If = CompletionItemKindKeyword
-toLspCompletionItemKind Match {} = CompletionItemKindKeyword
-toLspCompletionItemKind While = CompletionItemKindKeyword
-toLspCompletionItemKind Do = CompletionItemKindKeyword
-toLspCompletionItemKind Let = CompletionItemKindKeyword
-toLspCompletionItemKind LocalDef = CompletionItemKindKeyword
-toLspCompletionItemKind Mod {} = CompletionItemKindModule
-toLspCompletionItemKind Deftype {} = CompletionItemKindTypeParameter
-toLspCompletionItemKind DefSumtype {} = CompletionItemKindEnum
-toLspCompletionItemKind Deftemplate {} = CompletionItemKindFunction
-toLspCompletionItemKind Instantiate {} = CompletionItemKindFunction
-toLspCompletionItemKind External {} = CompletionItemKindValue
-toLspCompletionItemKind ExternalType {} = CompletionItemKindValue
-toLspCompletionItemKind MetaStub = CompletionItemKindField
-toLspCompletionItemKind (Defalias _) = CompletionItemKindVariable
-toLspCompletionItemKind SetBang = CompletionItemKindValue
-toLspCompletionItemKind Macro = CompletionItemKindFunction
-toLspCompletionItemKind Dynamic = CompletionItemKindFunction
-toLspCompletionItemKind DefDynamic = CompletionItemKindFunction
-toLspCompletionItemKind (Command _) = CompletionItemKindFunction
-toLspCompletionItemKind (Primitive _) = CompletionItemKindValue
-toLspCompletionItemKind The = CompletionItemKindKeyword
-toLspCompletionItemKind Ref = CompletionItemKindFunction
-toLspCompletionItemKind Deref = CompletionItemKindFunction
-toLspCompletionItemKind Break = CompletionItemKindKeyword
-toLspCompletionItemKind (Interface _ _) = CompletionItemKindInterface
-toLspCompletionItemKind With = CompletionItemKindKeyword
+-- toLspCompletionItemKind :: Obj -> CompletionItemKind
+-- toLspCompletionItemKind C {} = CompletionItemKindValue
+-- toLspCompletionItemKind Lst {} = CompletionItemKindValue
+-- toLspCompletionItemKind Arr {} = CompletionItemKindValue
+-- toLspCompletionItemKind StaticArr {} = CompletionItemKindValue
+-- toLspCompletionItemKind Dict {} = CompletionItemKindStruct
+-- toLspCompletionItemKind Num {} = CompletionItemKindValue
+-- toLspCompletionItemKind Str {} = CompletionItemKindValue
+-- toLspCompletionItemKind Pattern {} = CompletionItemKindValue
+-- toLspCompletionItemKind Chr {} = CompletionItemKindValue
+-- toLspCompletionItemKind Sym {} = CompletionItemKindVariable
+-- toLspCompletionItemKind MultiSym {} = CompletionItemKindVariable
+-- toLspCompletionItemKind InterfaceSym {} = CompletionItemKindInterface
+-- toLspCompletionItemKind Bol {} = CompletionItemKindValue
+-- toLspCompletionItemKind Defn {} = CompletionItemKindFunction
+-- toLspCompletionItemKind Def = CompletionItemKindVariable
+-- toLspCompletionItemKind Fn {} = CompletionItemKindFunction
+-- toLspCompletionItemKind Closure {} = CompletionItemKindFunction
+-- toLspCompletionItemKind If = CompletionItemKindKeyword
+-- toLspCompletionItemKind Match {} = CompletionItemKindKeyword
+-- toLspCompletionItemKind While = CompletionItemKindKeyword
+-- toLspCompletionItemKind Do = CompletionItemKindKeyword
+-- toLspCompletionItemKind Let = CompletionItemKindKeyword
+-- toLspCompletionItemKind LocalDef = CompletionItemKindKeyword
+-- toLspCompletionItemKind Mod {} = CompletionItemKindModule
+-- toLspCompletionItemKind Deftype {} = CompletionItemKindTypeParameter
+-- toLspCompletionItemKind DefSumtype {} = CompletionItemKindEnum
+-- toLspCompletionItemKind Deftemplate {} = CompletionItemKindFunction
+-- toLspCompletionItemKind Instantiate {} = CompletionItemKindFunction
+-- toLspCompletionItemKind External {} = CompletionItemKindValue
+-- toLspCompletionItemKind ExternalType {} = CompletionItemKindValue
+-- toLspCompletionItemKind MetaStub = CompletionItemKindField
+-- toLspCompletionItemKind (Defalias _) = CompletionItemKindVariable
+-- toLspCompletionItemKind SetBang = CompletionItemKindValue
+-- toLspCompletionItemKind Macro = CompletionItemKindFunction
+-- toLspCompletionItemKind Dynamic = CompletionItemKindFunction
+-- toLspCompletionItemKind DefDynamic = CompletionItemKindFunction
+-- toLspCompletionItemKind (Command _) = CompletionItemKindFunction
+-- toLspCompletionItemKind (Primitive _) = CompletionItemKindValue
+-- toLspCompletionItemKind The = CompletionItemKindKeyword
+-- toLspCompletionItemKind Ref = CompletionItemKindFunction
+-- toLspCompletionItemKind Deref = CompletionItemKindFunction
+-- toLspCompletionItemKind Break = CompletionItemKindKeyword
+-- toLspCompletionItemKind (Interface _ _) = CompletionItemKindInterface
+-- toLspCompletionItemKind With = CompletionItemKindKeyword
 
-xobjToLspRange :: XObj -> Range
-xobjToLspRange xobj =
-  infoToLspRange (fromMaybe dummyInfo (xobjInfo xobj))
+-- xobjToLspRange :: XObj -> Range
+-- xobjToLspRange xobj =
+--   infoToLspRange (fromMaybe dummyInfo (xobjInfo xobj))

@@ -28,7 +28,6 @@ module Types
     getNameFromStructName,
     getStructPath,
     promoteNumber,
-    tyToLspSymbolKind,
   )
 where
 
@@ -37,12 +36,9 @@ import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Text (pack, splitOn, unpack)
 import GHC.Generics (Generic)
-import Lsp
 import qualified Map
 import SymPath
 import Util
-
--- import Debug.Trace
 
 -- | Carp types.
 data Ty
@@ -382,29 +378,29 @@ promoteNumber _ DoubleTy = DoubleTy
 promoteNumber a b =
   error ("promoteNumber called with non-numbers: " ++ show a ++ ", " ++ show b)
 
-tyToLspSymbolKind :: Ty -> SymbolKind
-tyToLspSymbolKind IntTy {} = SymbolKindNumber
-tyToLspSymbolKind LongTy {} = SymbolKindNumber
-tyToLspSymbolKind ByteTy {} = SymbolKindVariable
-tyToLspSymbolKind BoolTy {} = SymbolKindBoolean
-tyToLspSymbolKind FloatTy {} = SymbolKindNumber
-tyToLspSymbolKind DoubleTy {} = SymbolKindNumber
-tyToLspSymbolKind StringTy {} = SymbolKindString
-tyToLspSymbolKind PatternTy {} = SymbolKindString -- TODO
-tyToLspSymbolKind CharTy {} = SymbolKindConstant
-tyToLspSymbolKind CCharTy {} = SymbolKindConstant
-tyToLspSymbolKind FuncTy {} = SymbolKindFunction
-tyToLspSymbolKind VarTy {} = SymbolKindVariable
-tyToLspSymbolKind UnitTy {} = SymbolKindNull
-tyToLspSymbolKind ModuleTy {} = SymbolKindModule
-tyToLspSymbolKind PointerTy {} = SymbolKindConstant -- TODO
-tyToLspSymbolKind RefTy {} = SymbolKindConstant
-tyToLspSymbolKind StaticLifetimeTy {} = SymbolKindConstant
-tyToLspSymbolKind StructTy {} = SymbolKindStruct
-tyToLspSymbolKind ConcreteNameTy {} = SymbolKindConstant -- TODO
-tyToLspSymbolKind TypeTy {} = SymbolKindInterface
-tyToLspSymbolKind MacroTy {} = SymbolKindInterface
-tyToLspSymbolKind DynamicTy {} = SymbolKindInterface
-tyToLspSymbolKind InterfaceTy {} = SymbolKindInterface
-tyToLspSymbolKind CTy {} = SymbolKindInterface
-tyToLspSymbolKind Universe {} = SymbolKindInterface
+-- tyToLspSymbolKind :: Ty -> SymbolKind
+-- tyToLspSymbolKind IntTy {} = SymbolKindNumber
+-- tyToLspSymbolKind LongTy {} = SymbolKindNumber
+-- tyToLspSymbolKind ByteTy {} = SymbolKindVariable
+-- tyToLspSymbolKind BoolTy {} = SymbolKindBoolean
+-- tyToLspSymbolKind FloatTy {} = SymbolKindNumber
+-- tyToLspSymbolKind DoubleTy {} = SymbolKindNumber
+-- tyToLspSymbolKind StringTy {} = SymbolKindString
+-- tyToLspSymbolKind PatternTy {} = SymbolKindString -- TODO
+-- tyToLspSymbolKind CharTy {} = SymbolKindConstant
+-- tyToLspSymbolKind CCharTy {} = SymbolKindConstant
+-- tyToLspSymbolKind FuncTy {} = SymbolKindFunction
+-- tyToLspSymbolKind VarTy {} = SymbolKindVariable
+-- tyToLspSymbolKind UnitTy {} = SymbolKindNull
+-- tyToLspSymbolKind ModuleTy {} = SymbolKindModule
+-- tyToLspSymbolKind PointerTy {} = SymbolKindConstant -- TODO
+-- tyToLspSymbolKind RefTy {} = SymbolKindConstant
+-- tyToLspSymbolKind StaticLifetimeTy {} = SymbolKindConstant
+-- tyToLspSymbolKind StructTy {} = SymbolKindStruct
+-- tyToLspSymbolKind ConcreteNameTy {} = SymbolKindConstant -- TODO
+-- tyToLspSymbolKind TypeTy {} = SymbolKindInterface
+-- tyToLspSymbolKind MacroTy {} = SymbolKindInterface
+-- tyToLspSymbolKind DynamicTy {} = SymbolKindInterface
+-- tyToLspSymbolKind InterfaceTy {} = SymbolKindInterface
+-- tyToLspSymbolKind CTy {} = SymbolKindInterface
+-- tyToLspSymbolKind Universe {} = SymbolKindInterface

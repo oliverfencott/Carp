@@ -310,6 +310,7 @@ data CompletionItem = CompletionItem
     completionItemDocumentation :: MarkupContent
   }
 
+-- TODO
 instance Show CompletionItem where
   show _completionItem =
     show item

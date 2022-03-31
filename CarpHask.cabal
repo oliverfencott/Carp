@@ -38,6 +38,7 @@ library
                        InitialTypes,
                        Interfaces,
                        Json,
+                       LanguageServer,
                        Lsp,
                        Managed,
                        Map,

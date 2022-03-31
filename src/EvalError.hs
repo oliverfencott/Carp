@@ -10,9 +10,8 @@ module EvalError
   )
 where
 
-import Data.Maybe (fromMaybe)
 import Info
-import Lsp (Diagnostic (Diagnostic), DiagnosticSeverity (Error), PublishDiagnosticsParams (PublishDiagnosticsParams))
+import LanguageServer (makeErrorDiagnosticWithLabel)
 import Obj
 import SymPath
 import TypeError
@@ -187,22 +186,13 @@ labelFromEvalError e = case e of
 -- | Given a Showable error, turn it into an EvalError
 -- TODO: Unify this and toEvalError and remove one of these functions.
 throwErr :: EvaluationError -> Context -> Maybe Info -> (Context, Either EvalError XObj)
-throwErr err ctx i =
+throwErr errMsg ctx i =
   case contextExecMode ctx of
     Analysis ->
-      evalError ctx e i
+      evalError ctx err i
       where
-        codeLabel = labelFromEvalError err
-        info = fromMaybe dummyInfo i
-        uri = infoFile info
-        e =
-          show
-            ( PublishDiagnosticsParams
-                uri
-                [ Diagnostic Error (show err) (infoToLspRange info) (Just codeLabel)
-                ]
-            )
-    _ -> evalError ctx (show err) i
+        err = makeErrorDiagnosticWithLabel (show errMsg) i (labelFromEvalError errMsg)
+    _ -> evalError ctx (show errMsg) i
 
 --------------------------------------------------------------------------------
 -- Invalid Argument Helpers

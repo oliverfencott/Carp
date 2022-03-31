@@ -137,15 +137,3 @@ whenRight (Left err) _ = pure (Left err)
 whenRightReturn :: Applicative f => Either a b -> Either a c -> f (Either a c)
 whenRightReturn (Right _) cont = pure cont
 whenRightReturn (Left err) _ = pure (Left err)
-
-stripFileProtocol :: String -> String
-stripFileProtocol rawPath =
-  if protocol `isPrefixOf` rawPath
-    then drop (length protocol) rawPath
-    else rawPath
-
-prependFileProtocol :: String -> String
-prependFileProtocol rawPath = protocol ++ rawPath
-
-protocol :: [Char]
-protocol = "file://"

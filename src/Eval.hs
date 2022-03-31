@@ -21,8 +21,7 @@ import Expand
 import Forms
 import Infer
 import Info
-import Lsp (PublishDiagnosticsParams (PublishDiagnosticsParams))
-import qualified Lsp
+import LanguageServer (makeErrorDiagnosticWithLabel, parseFilePath)
 import qualified Map
 import qualified Meta
 import Obj
@@ -550,16 +549,9 @@ executeStringAtLine line doCatch printResult ctx input fileName =
           message = formatParseError e
       case contextExecMode ctx' of
         Check -> putStrLn (machineReadableInfoFromXObj fppl xobj ++ " " ++ message)
-        Analysis -> putStrLn (printLspError message (xobjInfo xobj))
+        Analysis -> putStrLn (printErrorDiagnostic message (xobjInfo xobj))
         _ -> emitErrorWithLabel "PARSE ERROR" message
       throw CancelEvaluationException
-
-printLspError :: String -> Maybe Info -> String
-printLspError err info =
-  show (PublishDiagnosticsParams uri [diagnostic])
-  where
-    uri = maybeInfoToFileUri info
-    diagnostic = Lsp.Diagnostic Lsp.Error err (maybeInfoToLspRange info) Nothing
 
 -- | Used by functions that has a series of forms to evaluate and need to fold over them (producing a new Context in the end)
 folder :: Context -> XObj -> IO Context
@@ -630,7 +622,7 @@ reportExecutionError ctx errorMessage =
     (Analysis, EvalError msg _ _ _info) ->
       putStrLn msg
     (Analysis, HasStaticCall xobj info) ->
-      putStrLn (printLspError ("Expression " ++ pretty xobj ++ " has unexpected static call") info)
+      putStrLn (printErrorDiagnostic ("Expression " ++ pretty xobj ++ " has unexpected static call") info)
     _ ->
       do
         emitErrorBare (show errorMessage)
@@ -734,7 +726,17 @@ annotateWithinContext ctx xobj = do
                 Left err ->
                   case contextExecMode ctx of
                     Check -> pure (evalError ctx (show err) maybeInfo)
-                    Analysis -> pure (evalError ctx (toLspMessage err maybeInfo) maybeInfo)
+                    Analysis ->
+                      pure
+                        ( evalError
+                            ctx
+                            ( makeErrorDiagnosticWithLabel
+                                (show err)
+                                maybeInfo
+                                (showLabel err)
+                            )
+                            maybeInfo
+                        )
                     _ -> pure (evalError ctx (show err) maybeInfo)
                 Right xs ->
                   case annotate typeEnv globalEnv xs okSig of
@@ -1054,7 +1056,7 @@ commandHover ctx filePathObj lineObj columnObj =
                         pure (ctx, dynamicNil)
               )
         where
-          filePath = stripFileProtocol rawPath
+          filePath = parseFilePath rawPath
     _ ->
       pure
         ( evalError
@@ -1080,7 +1082,7 @@ commandGoToDefinition ctx filePathObj lineObj columnObj =
                         pure (ctx, dynamicNil)
               )
         where
-          filePath = stripFileProtocol rawPath
+          filePath = parseFilePath rawPath
     _ ->
       pure
         ( evalError
@@ -1103,7 +1105,7 @@ commandTextDocumentDocumentSymbol ctx filePathObj =
                       pure (ctx, dynamicNil)
             )
       where
-        filePath = stripFileProtocol rawPath
+        filePath = parseFilePath rawPath
     _ ->
       pure
         ( evalError
@@ -1126,7 +1128,7 @@ commandTextDocumentCompletion ctx filePathObj =
                       pure (ctx, dynamicNil)
             )
       where
-        filePath = stripFileProtocol rawPath
+        filePath = parseFilePath rawPath
     _ ->
       pure
         ( evalError
@@ -1141,7 +1143,7 @@ commandValidate ctx filePathObj =
     (XObj (Str rawPath) info _) ->
       loadInternal ctx filePathObj filePath info Nothing DoesReload >> pure (ctx, dynamicNil)
       where
-        filePath = stripFileProtocol rawPath
+        filePath = parseFilePath rawPath
     _ ->
       pure
         ( evalError
@@ -1164,7 +1166,7 @@ commandDebugAllBinders ctx filePathObj =
                       pure (ctx, dynamicNil)
             )
       where
-        filePath = stripFileProtocol rawPath
+        filePath = parseFilePath rawPath
     _ ->
       pure
         ( evalError
@@ -1187,7 +1189,7 @@ commandDebugAllSymbols ctx filePathObj =
                       pure (ctx, dynamicNil)
             )
       where
-        filePath = stripFileProtocol rawPath
+        filePath = parseFilePath rawPath
     _ ->
       pure
         ( evalError
